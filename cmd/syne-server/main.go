@@ -7,7 +7,8 @@ import (
 	"path/filepath"
 	"syscall"
 
-	s "server"
+	control "server/internal/control"
+	identity "server/internal/identity"
 
 	protocol "github.com/Ryo-del/Syne-protocol"
 	"github.com/libp2p/go-libp2p"
@@ -23,7 +24,7 @@ func main() {
 	}
 	path = filepath.Join(path, ".identity")
 
-	privKey, err := s.LoadOrCreateIdentity(path)
+	privKey, err := identity.LoadOrCreateIdentity(path)
 	if err != nil {
 		slog.Error("Error with get privKey", "error", err)
 		return
@@ -37,7 +38,7 @@ func main() {
 		slog.Error("error create host", "error", err)
 		return
 	}
-	controlhandler := s.NewControlHandler(host)
+	controlhandler := control.NewControlHandler(host)
 	addrs, err := fullAddrs(host)
 	if err != nil {
 		slog.Error("failed to resolve addrs", "error", err)
