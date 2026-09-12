@@ -23,7 +23,7 @@ func (c *ControlHandler) HandleStream(stream network.Stream) {
 		return
 	}
 
-	hello, err := protocol.UnmarshalHello(data)
+	hello, err := protocol.UnmarshalJSON[protocol.Hello](data)
 	if err != nil {
 		return
 	}
@@ -34,7 +34,7 @@ func (c *ControlHandler) HandleStream(stream network.Stream) {
 			Timestamp: time.Now().UnixMilli(),
 		}
 		log.Printf("control: rejected peer=%s reason=%q", stream.Conn().RemotePeer(), rej.Reason)
-		dataReject, err := protocol.MarshalReject(rej)
+		dataReject, err := protocol.MarshalJSON(rej)
 		if err != nil {
 			return
 		}
@@ -50,7 +50,7 @@ func (c *ControlHandler) HandleStream(stream network.Stream) {
 			Timestamp:     time.Now().UnixMilli(),
 		}
 
-		dataWelcome, err := protocol.MarshalWelcome(welcome)
+		dataWelcome, err := protocol.MarshalJSON(welcome)
 		if err != nil {
 			return
 		}

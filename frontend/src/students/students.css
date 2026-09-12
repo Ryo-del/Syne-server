@@ -1,0 +1,192 @@
+
+.students-page {
+  min-height: 100%;
+  padding: 32px;
+}
+
+.students-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.students-header h1 {
+  margin: 0;
+  font-size: 32px;
+  letter-spacing: -0.03em;
+}
+
+.students-header p {
+  margin: 7px 0 0;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 14px;
+}
+
+.students-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.students-actions button {
+  border: none;
+  border-radius: 9px;
+  padding: 10px 15px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.secondary-button {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.secondary-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.primary-button {
+  background: rgba(255, 255, 255, 0.9);
+  color: #111;
+}
+
+.primary-button:hover {
+  background: white;
+}
+
+
+/* Список */
+
+.students-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.student-row {
+  display: flex;
+  align-items: center;
+  min-height: 72px;
+  padding: 10px 14px;
+  border-radius: 12px;
+
+  background: rgba(255, 255, 255, 0.035);
+
+  transition: background 0.15s ease;
+}
+
+.student-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+
+/* Аватар + информация */
+
+.student-main {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.student-avatar {
+  width: 44px;
+  height: 44px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: rgba(255, 255, 255, 0.07);
+
+  font-size: 21px;
+  flex-shrink: 0;
+}
+
+.student-info {
+  margin-left: 12px;
+}
+
+.student-name {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.student-id {
+  margin-left: 8px;
+
+  color: rgba(255, 255, 255, 0.3);
+
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.student-role {
+  margin-top: 4px;
+
+  color: rgba(255, 255, 255, 0.4);
+
+  font-size: 12px;
+}
+
+
+/* Статус */
+
+.student-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+
+  width: 110px;
+
+  color: rgba(255, 255, 255, 0.55);
+
+  font-size: 13px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+
+  border-radius: 50%;
+}
+
+.status-dot.online {
+  background: #4ade80;
+}
+
+.status-dot.offline {
+  background: #ef4444;
+}
+
+
+/* Кнопка действий */
+
+.student-menu-button {
+  width: 32px;
+  height: 32px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  margin-left: 12px;
+
+  border: none;
+  border-radius: 7px;
+
+  background: transparent;
+
+  color: rgba(255, 255, 255, 0.4);
+
+  font-size: 20px;
+
+  cursor: pointer;
+}
+
+.student-menu-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.8);
+}

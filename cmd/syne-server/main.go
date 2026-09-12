@@ -1,13 +1,16 @@
 package main
 
 import (
+	"database/sql"
 	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
 
+	"server/internal/auth"
 	control "server/internal/control"
+	db "server/internal/db"
 	identity "server/internal/identity"
 
 	protocol "github.com/Ryo-del/Syne-protocol"
@@ -16,6 +19,20 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
+type Server struct {
+	DB *sql.DB
+}
+
+func ConnectToDB(path string) (*sql.DB, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return nil, err
+	}
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
+}
 func main() {
 	path, err := os.Getwd()
 	if err != nil {
@@ -38,6 +55,16 @@ func main() {
 		slog.Error("error create host", "error", err)
 		return
 	}
+	database, err := ConnectToDB("storage/syne.db")
+	if err != nil {
+		slog.Error("error to create database")
+		return
+	}
+	err = db.InitSchema(database)
+	if err != nil {
+		slog.Error("failed to init schema", "error", err)
+		return
+	}
 	controlhandler := control.NewControlHandler(host)
 	addrs, err := fullAddrs(host)
 	if err != nil {
@@ -48,12 +75,14 @@ func main() {
 		slog.Info("listening", "addr", a)
 	}
 	host.SetStreamHandler(protocol.StreamProtocol, controlhandler.HandleStream)
-
+	authHandler := auth.NewAuthHandler(database)
+	host.SetStreamHandler(protocol.AuthStreamProtocol, authHandler.HandleStream)
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
 	slog.Info("shutting down")
 	_ = host.Close()
+	_ = database.Close()
 
 }
 
