@@ -61,6 +61,8 @@ func TestCreateUser(t *testing.T) {
 		[]byte("salt"),
 		[]byte("loginsalt"),
 		[]byte("encryptedkey"),
+		[]byte("identityPublicKey"),
+		[]byte("encryptedIdentityKey"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -116,6 +118,8 @@ func TestCreateUserDuplicateLogin(t *testing.T) {
 		[]byte("salt"),
 		[]byte("loginsalt"),
 		[]byte("encryptedkey"),
+		[]byte("identityPublicKey"),
+		[]byte("encryptedIdentityKey"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -130,6 +134,8 @@ func TestCreateUserDuplicateLogin(t *testing.T) {
 		[]byte("salt"),
 		[]byte("loginsalt"),
 		[]byte("encryptedkey"),
+		[]byte("identityPublicKey"),
+		[]byte("encryptedIdentityKey"),
 	)
 
 	if !errors.Is(err, ErrLoginAlreadyExists) {
@@ -149,6 +155,8 @@ func TestGetUserByLogin(t *testing.T) {
 		[]byte("salt"),
 		[]byte("loginsalt"),
 		[]byte("encryptedkey"),
+		[]byte("identityPublicKey"),
+		[]byte("encryptedIdentityKey"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -186,6 +194,8 @@ func TestCreateSession(t *testing.T) {
 		[]byte("salt"),
 		[]byte("loginsalt"),
 		[]byte("encryptedkey"),
+		[]byte("identityPublicKey"),
+		[]byte("encryptedIdentityKey"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -253,6 +263,8 @@ func TestDeleteSession(t *testing.T) {
 		[]byte("salt"),
 		[]byte("loginsalt"),
 		[]byte("encryptedkey"),
+		[]byte("identityPublicKey"),
+		[]byte("encryptedIdentityKey"),
 	)
 	if err != nil {
 		t.Fatal(err)

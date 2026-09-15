@@ -3,6 +3,7 @@ package metrics
 import (
 	"encoding/json"
 	"net/http"
+	"runtime"
 	"sync"
 	"time"
 
@@ -53,6 +54,13 @@ type Collector struct {
 	lastTx uint64
 }
 
+func systemDiskPath() string {
+	if runtime.GOOS == "windows" {
+		return "C:\\"
+	}
+
+	return "/"
+}
 func NewCollector() *Collector {
 	c := &Collector{}
 
@@ -93,7 +101,7 @@ func (c *Collector) collect() {
 	}
 
 	// Disk
-	if usage, err := disk.Usage("/"); err == nil {
+	if usage, err := disk.Usage(systemDiskPath()); err == nil {
 		usedGB := bytesToGB(usage.Used)
 
 		c.addDisk(Point{
@@ -214,7 +222,7 @@ func (c *Collector) DiskHandler(w http.ResponseWriter, r *http.Request) {
 
 	total := 0.0
 
-	if usage, err := disk.Usage("/"); err == nil {
+	if usage, err := disk.Usage(systemDiskPath()); err == nil {
 		total = bytesToGB(usage.Total)
 	}
 

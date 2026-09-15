@@ -63,6 +63,8 @@ func (a *AuthHandler) handleRegister(stream network.Stream, data []byte) {
 		req.PasswordSalt,
 		req.LoginKeySalt,
 		req.EncryptedMasterKey,
+		req.IdentityPublicKey,
+		req.EncryptedIdentityKey,
 	)
 
 	if err != nil {
@@ -243,11 +245,13 @@ func (a *AuthHandler) handleLogin(stream network.Stream, firstMsg []byte) {
 
 	// Успешный вход.
 	Lresponse := protocol.LoginSuccess{
-		Type:               protocol.AuthTypeLoginSuccess,
-		SessionID:          sessionID,
-		FName:              user.FName,
-		SName:              user.SName,
-		EncryptedMasterKey: user.EncryptedMasterKey,
+		Type:                 protocol.AuthTypeLoginSuccess,
+		SessionID:            sessionID,
+		FName:                user.FName,
+		SName:                user.SName,
+		EncryptedMasterKey:   user.EncryptedMasterKey,
+		IdentityPublicKey:    user.IdentityPublicKey,
+		EncryptedIdentityKey: user.EncryptedIdentityKey,
 	}
 
 	data, err = protocol.MarshalJSON(Lresponse)

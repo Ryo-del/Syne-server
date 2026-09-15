@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"flag"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	control "server/internal/control"
 	db "server/internal/db"
 	identity "server/internal/identity"
+	metrics "server/internal/metrics"
 	presence "server/internal/presence"
 
 	protocol "github.com/Ryo-del/Syne-protocol"
@@ -37,7 +39,9 @@ func ConnectToDB(path string) (*sql.DB, error) {
 }
 func main() {
 	var listenAddr string
+	var port string
 	flag.StringVar(&listenAddr, "listen", "/ip4/0.0.0.0/tcp/9000", "libp2p listen multiaddr")
+	flag.StringVar(&port, "port", "8080", "for host frontend api")
 	flag.Parse()
 
 	path, err := os.Getwd()
@@ -77,6 +81,9 @@ func main() {
 		slog.Error("failed to resolve addrs", "error", err)
 		return
 	}
+	collector := metrics.NewCollector()
+
+	go HostApi("8080", collector)
 	for _, a := range addrs {
 		slog.Info("listening", "addr", a)
 	}
@@ -93,7 +100,33 @@ func main() {
 	_ = database.Close()
 
 }
+func cors(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+func HostApi(port string, collector *metrics.Collector) {
+	mux := http.NewServeMux()
+
+	metrics.RegisterRoutes(mux, collector)
+
+	handler := cors(mux)
+
+	slog.Info("HTTP API listening", "port", port)
+
+	if err := http.ListenAndServe(":"+port, handler); err != nil {
+		slog.Error("HTTP API stopped", "error", err)
+	}
+}
 func fullAddrs(h host.Host) ([]string, error) {
 	info := peer.AddrInfo{ID: h.ID(), Addrs: h.Addrs()}
 	addrs, err := peer.AddrInfoToP2pAddrs(&info)

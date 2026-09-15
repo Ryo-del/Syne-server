@@ -125,14 +125,16 @@ func TestHandleRegisterSuccess(t *testing.T) {
 	defer cleanup()
 
 	request := protocol.RegisterRequest{
-		Type:               protocol.AuthTypeRegisterRequest,
-		Login:              "testuser",
-		FName:              "Test",
-		SName:              "User",
-		PasswordHash:       []byte("password-hash"),
-		PasswordSalt:       []byte("password-salt"),
-		LoginKeySalt:       []byte("login-key-salt"),
-		EncryptedMasterKey: []byte("encrypted-master-key"),
+		Type:                 protocol.AuthTypeRegisterRequest,
+		Login:                "testuser",
+		FName:                "Test",
+		SName:                "User",
+		PasswordHash:         []byte("password-hash"),
+		PasswordSalt:         []byte("password-salt"),
+		LoginKeySalt:         []byte("login-key-salt"),
+		EncryptedMasterKey:   []byte("encrypted-master-key"),
+		IdentityPublicKey:    []byte("identity-public-key"),
+		EncryptedIdentityKey: []byte("encrypted-identity-key"),
 	}
 
 	writeMessage(t, stream, request)
@@ -177,6 +179,8 @@ func TestHandleRegisterDuplicateLogin(t *testing.T) {
 		[]byte("salt"),
 		[]byte("login-salt"),
 		[]byte("master-key"),
+		[]byte("identityPublicKey"),
+		[]byte("encryptedIdentityKey"),
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -185,14 +189,16 @@ func TestHandleRegisterDuplicateLogin(t *testing.T) {
 	defer cleanup()
 
 	request := protocol.RegisterRequest{
-		Type:               protocol.AuthTypeRegisterRequest,
-		Login:              "testuser",
-		FName:              "New",
-		SName:              "User",
-		PasswordHash:       []byte("new-hash"),
-		PasswordSalt:       []byte("new-salt"),
-		LoginKeySalt:       []byte("new-login-salt"),
-		EncryptedMasterKey: []byte("new-master-key"),
+		Type:                 protocol.AuthTypeRegisterRequest,
+		Login:                "testuser",
+		FName:                "New",
+		SName:                "User",
+		PasswordHash:         []byte("new-hash"),
+		PasswordSalt:         []byte("new-salt"),
+		LoginKeySalt:         []byte("new-login-salt"),
+		EncryptedMasterKey:   []byte("new-master-key"),
+		IdentityPublicKey:    []byte("identity-public-key"),
+		EncryptedIdentityKey: []byte("encrypted-identity-key"),
 	}
 
 	writeMessage(t, stream, request)
@@ -262,6 +268,8 @@ func TestHandleLoginWrongPassword(t *testing.T) {
 		[]byte("password-salt"),
 		[]byte("login-key-salt"),
 		[]byte("encrypted-master-key"),
+		[]byte("identityPublicKey"),
+		[]byte("encryptedIdentityKey"),
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -319,6 +327,8 @@ func TestHandleLoginSuccess(t *testing.T) {
 	passwordSalt := []byte("password-salt")
 	loginKeySalt := []byte("login-key-salt")
 	masterKey := []byte("encrypted-master-key")
+	identityPublicKey := []byte("identityPublicKey")
+	encryptedIdentityKey := []byte("encryptedIdentityKey")
 
 	if err := db.CreateUser(
 		database,
@@ -329,6 +339,8 @@ func TestHandleLoginSuccess(t *testing.T) {
 		passwordSalt,
 		loginKeySalt,
 		masterKey,
+		identityPublicKey,
+		encryptedIdentityKey,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -399,7 +411,8 @@ func TestHandleLoginCreatesSession(t *testing.T) {
 	handler := NewAuthHandler(database)
 
 	passwordHash := []byte("correct-hash")
-
+	identityPublicKey := []byte("identityPublicKey")
+	encryptedIdentityKey := []byte("encryptedIdentityKey")
 	if err := db.CreateUser(
 		database,
 		"testuser",
@@ -409,6 +422,8 @@ func TestHandleLoginCreatesSession(t *testing.T) {
 		[]byte("salt"),
 		[]byte("login-salt"),
 		[]byte("master-key"),
+		identityPublicKey,
+		encryptedIdentityKey,
 	); err != nil {
 		t.Fatal(err)
 	}

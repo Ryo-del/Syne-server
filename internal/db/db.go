@@ -12,15 +12,17 @@ import (
 )
 
 type User struct {
-	ID                 int64
-	FName              string
-	SName              string
-	Login              string
-	PasswordHash       []byte
-	PasswordSalt       []byte
-	LoginKeySalt       []byte
-	EncryptedMasterKey []byte
-	CreatedAt          int64
+	ID                   int64
+	FName                string
+	SName                string
+	Login                string
+	PasswordHash         []byte
+	PasswordSalt         []byte
+	LoginKeySalt         []byte
+	EncryptedMasterKey   []byte
+	IdentityPublicKey    []byte
+	EncryptedIdentityKey []byte
+	CreatedAt            int64
 }
 
 var ErrLoginAlreadyExists = errors.New("login already exists")
@@ -36,27 +38,19 @@ func CreateUser(
 	db *sql.DB,
 	login, fname, sname string,
 	passwordHash, passwordSalt, loginKeySalt, encryptedMasterKey []byte,
+	identityPublicKey, encryptedIdentityKey []byte,
 ) error {
 	_, err := db.Exec(`
 		INSERT INTO users (
-			login,
-			fname,
-			sname,
-			password_hash,
-			password_salt,
-			login_key_salt,
-			encrypted_master_key,
-			created_at
+			login, fname, sname, password_hash, password_salt,
+			login_key_salt, encrypted_master_key,
+			identity_public_key, encrypted_identity_key, created_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
-		login,
-		fname,
-		sname,
-		passwordHash,
-		passwordSalt,
-		loginKeySalt,
-		encryptedMasterKey,
+		login, fname, sname, passwordHash, passwordSalt,
+		loginKeySalt, encryptedMasterKey,
+		identityPublicKey, encryptedIdentityKey,
 		time.Now().Unix(),
 	)
 
@@ -74,9 +68,9 @@ func CreateUser(
 	return nil
 }
 func GetUserByLogin(db *sql.DB, login string) (*User, error) {
-	row := db.QueryRow(`SELECT id, login, fname, sname, password_hash, password_salt, login_key_salt, encrypted_master_key, created_at FROM users WHERE login = ?`, login)
+	row := db.QueryRow(`SELECT id, login, fname, sname, password_hash, password_salt, login_key_salt, encrypted_master_key, identity_public_key, encrypted_identity_key, created_at FROM users WHERE login = ?`, login)
 	var user User
-	err := row.Scan(&user.ID, &user.Login, &user.FName, &user.SName, &user.PasswordHash, &user.PasswordSalt, &user.LoginKeySalt, &user.EncryptedMasterKey, &user.CreatedAt)
+	err := row.Scan(&user.ID, &user.Login, &user.FName, &user.SName, &user.PasswordHash, &user.PasswordSalt, &user.LoginKeySalt, &user.EncryptedMasterKey, &user.IdentityPublicKey, &user.EncryptedIdentityKey, &user.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -117,6 +111,8 @@ func InitSchema(db *sql.DB) error {
     password_salt        BLOB NOT NULL,
     login_key_salt       BLOB NOT NULL,
     encrypted_master_key BLOB NOT NULL,
+	identity_public_key  BLOB NOT NULL DEFAULT '',
+    encrypted_identity_key BLOB NOT NULL DEFAULT '',
     created_at           INTEGER NOT NULL
 );
 
