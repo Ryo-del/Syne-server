@@ -1,10 +1,45 @@
 import './App.css'
 import { useState } from 'react'
-import Monitoring from './monitoring/monitoring'
+import Monitoring from './Page/monitoring/monitoring'
+import CPU from './Page/MetricWindows/CPU/CPU'
+import RAM from './Page/MetricWindows/RAM/RAM'
+import Network from './Page/MetricWindows/Network/Network'
+import OnlineUsers from './Page/MetricWindows/Online Users/OnlineUsers'
+import Connections from './Page/MetricWindows/Connections/Connections'
+import Study from './Page/MetricWindows/Study/Study'
+import Teacher from './Page/MetricWindows/Teacher/Teacher'
+import Errors from './Page/MetricWindows/Errors/Errors'
 
 function App() {
     const [activePage, setActivePage] = useState('monitoring')
-    
+     const path = window.location.pathname
+
+  switch (path) {
+    case '/metric/cpu':
+      return <CPU />
+
+    case '/metric/ram':
+      return <RAM />
+
+    case '/metric/network':
+      return <Network />
+
+    case '/metric/online-users':
+      return <OnlineUsers />
+
+    case '/metric/connections':
+      return <Connections />
+
+    case '/metric/study':
+      return <Study />
+
+    case '/metric/teacher':
+      return <Teacher />
+
+    case '/metric/errors':
+      return <Errors />
+
+  }
 
   return (
     <div className="app">

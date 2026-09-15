@@ -1,17 +1,7 @@
-import './Monitoring.css'
-import { useState } from 'react'
+import './monitoring.css'
+import { openMetric } from '../../MetricWindow'
 
 function Monitoring() {
-  const [activeMetric, setActiveMetric] = useState<string | null>(null)
-
-  const openMetric = (metric: string) => {
-    setActiveMetric(metric)
-  }
-
-  const closeMetric = () => {
-    setActiveMetric(null)
-  }
-
   return (
     <>
       <header className="header">
@@ -177,35 +167,6 @@ function Monitoring() {
           12
         </span>
       </div>
-
-      {/* Metric window */}
-
-      {activeMetric && (
-        <div
-          className="modal-overlay"
-          onClick={closeMetric}
-        >
-          <div
-            className="modal"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="modal-header">
-              <h2>{activeMetric}</h2>
-
-              <button
-                className="modal-close"
-                onClick={closeMetric}
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="chart">
-              Тут будет график {activeMetric}
-            </div>
-          </div>
-        </div>
-      )}
     </>
   )
 }

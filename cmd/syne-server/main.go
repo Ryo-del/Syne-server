@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"flag"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -12,6 +13,7 @@ import (
 	control "server/internal/control"
 	db "server/internal/db"
 	identity "server/internal/identity"
+	presence "server/internal/presence"
 
 	protocol "github.com/Ryo-del/Syne-protocol"
 	"github.com/libp2p/go-libp2p"
@@ -34,6 +36,10 @@ func ConnectToDB(path string) (*sql.DB, error) {
 	return db, nil
 }
 func main() {
+	var listenAddr string
+	flag.StringVar(&listenAddr, "listen", "/ip4/0.0.0.0/tcp/9000", "libp2p listen multiaddr")
+	flag.Parse()
+
 	path, err := os.Getwd()
 	if err != nil {
 		slog.Error("can't to get path", "error", err)
@@ -49,7 +55,7 @@ func main() {
 
 	host, err := libp2p.New(
 		libp2p.Identity(privKey),
-		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/9000"),
+		libp2p.ListenAddrStrings(listenAddr),
 	)
 	if err != nil {
 		slog.Error("error create host", "error", err)
@@ -77,6 +83,8 @@ func main() {
 	host.SetStreamHandler(protocol.StreamProtocol, controlhandler.HandleStream)
 	authHandler := auth.NewAuthHandler(database)
 	host.SetStreamHandler(protocol.AuthStreamProtocol, authHandler.HandleStream)
+	presenceHandler := presence.NewPresenceHandler()
+	host.SetStreamHandler(protocol.PresenceStreamProtocol, presenceHandler.HandleStream)
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh

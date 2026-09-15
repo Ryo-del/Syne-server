@@ -1,0 +1,69 @@
+.metric-window {
+  width: 100vw;
+  min-height: 100vh;
+  box-sizing: border-box;
+
+  padding: 24px;
+
+  background: #101318;
+  color: #e7e9ec;
+
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Display",
+    "SF Pro Text",
+    sans-serif;
+}
+
+.metric-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-bottom: 24px;
+}
+
+.metric-title {
+  margin: 0;
+
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.metric-description {
+  margin: 5px 0 0;
+
+  color: #626a74;
+  font-size: 14px;
+}
+
+.metric-value {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.metric-value.error {
+  color: #ff6b6b;
+}
+
+.metric-chart {
+  width: 100%;
+  height: 300px;
+
+  box-sizing: border-box;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #242a30;
+  border-radius: 8px;
+
+  background: #15181d;
+
+  color: #626a74;
+  font-size: 14px;
+}
