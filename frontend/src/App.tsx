@@ -9,7 +9,7 @@ import Connections from './Page/MetricWindows/Connections/Connections'
 import Study from './Page/MetricWindows/Study/Study'
 import Teacher from './Page/MetricWindows/Teacher/Teacher'
 import Errors from './Page/MetricWindows/Errors/Errors'
-
+import User from './Page/users/users'
 function App() {
     const [activePage, setActivePage] = useState('monitoring')
      const path = window.location.pathname
@@ -114,7 +114,7 @@ function App() {
 
       <main className="main">
      {activePage === 'monitoring' && <Monitoring />}
-        {activePage === 'users' && <h1>Users</h1>}
+        {activePage === 'users' && <User />}
         {activePage === 'settings' && <h1>Settings</h1>}
       </main>
     </div>

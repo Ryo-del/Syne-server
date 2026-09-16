@@ -88,7 +88,75 @@
   flex: 1;
   min-width: 0;
 }
+.students-toolbar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
 
+.students-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  flex: 1;
+
+  padding: 0 14px;
+
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.students-search span {
+  font-size: 20px;
+  opacity: 0.5;
+}
+
+.students-search input {
+  width: 100%;
+  height: 42px;
+
+  border: none;
+  outline: none;
+
+  background: transparent;
+  color: inherit;
+
+  font-size: 14px;
+}
+
+.students-search input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.students-sort {
+  height: 42px;
+  padding: 0 12px;
+
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+
+  background: rgba(255, 255, 255, 0.03);
+  color: inherit;
+
+  outline: none;
+  cursor: pointer;
+}
+
+.students-sort option {
+  background: #1c1c1c;
+  color: white;
+}
+
+.students-empty {
+  padding: 40px;
+
+  text-align: center;
+
+  color: rgba(255, 255, 255, 0.4);
+}
 .student-avatar {
   width: 44px;
   height: 44px;

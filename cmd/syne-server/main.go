@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"flag"
 	"log/slog"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"server/internal/auth"
 	control "server/internal/control"
@@ -43,7 +45,7 @@ func main() {
 	flag.StringVar(&listenAddr, "listen", "/ip4/0.0.0.0/tcp/9000", "libp2p listen multiaddr")
 	flag.StringVar(&port, "port", "8080", "for host frontend api")
 	flag.Parse()
-
+	startedAt := time.Now()
 	path, err := os.Getwd()
 	if err != nil {
 		slog.Error("can't to get path", "error", err)
@@ -83,7 +85,7 @@ func main() {
 	}
 	collector := metrics.NewCollector()
 
-	go HostApi("8080", collector)
+	go HostApi("8080", collector, startedAt)
 	for _, a := range addrs {
 		slog.Info("listening", "addr", a)
 	}
@@ -114,10 +116,20 @@ func cors(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
-func HostApi(port string, collector *metrics.Collector) {
+func HostApi(port string, collector *metrics.Collector, startedAt time.Time) {
 	mux := http.NewServeMux()
 
 	metrics.RegisterRoutes(mux, collector)
+
+	mux.HandleFunc("/api/uptime", func(w http.ResponseWriter, r *http.Request) {
+		uptime := time.Since(startedAt)
+
+		w.Header().Set("Content-Type", "application/json")
+
+		_ = json.NewEncoder(w).Encode(map[string]float64{
+			"seconds": uptime.Seconds(),
+		})
+	})
 
 	handler := cors(mux)
 
