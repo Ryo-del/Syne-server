@@ -1,0 +1,194 @@
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(0, 0, 0, 0.55);
+
+  z-index: 1000;
+}
+
+.add-user-modal {
+  width: 460px;
+  max-width: calc(100vw - 40px);
+
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+
+  background: #181818;
+
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  padding: 22px 24px;
+
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.modal-header h2 {
+  margin: 0;
+
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.modal-header p {
+  margin: 5px 0 0;
+
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.modal-close {
+  width: 32px;
+  height: 32px;
+
+  border: none;
+  border-radius: 8px;
+
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+
+  font-size: 24px;
+  line-height: 1;
+
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+}
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+
+  padding: 24px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-field > label {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.form-field input[type="text"] {
+  width: 100%;
+  height: 42px;
+
+  box-sizing: border-box;
+
+  padding: 0 12px;
+
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 9px;
+
+  background: rgba(255, 255, 255, 0.04);
+  color: white;
+
+  outline: none;
+
+  font-size: 14px;
+}
+
+.form-field input[type="text"]:focus {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.form-field input[type="text"]::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.id-input-wrapper {
+  display: flex;
+  gap: 8px;
+}
+
+.id-input-wrapper input {
+  flex: 1;
+}
+
+.generate-id-button {
+  width: 42px;
+  height: 42px;
+
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 9px;
+
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+
+  cursor: pointer;
+
+  font-size: 17px;
+}
+
+.generate-id-button:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.role-options {
+  display: flex;
+  gap: 10px;
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 10px 14px;
+
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9px;
+
+  cursor: pointer;
+
+  color: rgba(255, 255, 255, 0.7);
+
+  font-size: 14px;
+}
+
+.radio-option:has(input:checked) {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+}
+
+.radio-option input {
+  margin: 0;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+
+  padding: 18px 24px;
+
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.modal-footer button {
+  min-width: 100px;
+}
+
+.modal-footer .primary-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

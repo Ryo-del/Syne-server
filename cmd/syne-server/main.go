@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"flag"
@@ -85,7 +86,7 @@ func main() {
 	}
 	collector := metrics.NewCollector()
 
-	go HostApi("8080", collector, startedAt)
+	go HostApi("8080", collector, startedAt, database)
 	for _, a := range addrs {
 		slog.Info("listening", "addr", a)
 	}
@@ -116,7 +117,7 @@ func cors(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
-func HostApi(port string, collector *metrics.Collector, startedAt time.Time) {
+func HostApi(port string, collector *metrics.Collector, startedAt time.Time, database *sql.DB) {
 	mux := http.NewServeMux()
 
 	metrics.RegisterRoutes(mux, collector)
@@ -130,7 +131,17 @@ func HostApi(port string, collector *metrics.Collector, startedAt time.Time) {
 			"seconds": uptime.Seconds(),
 		})
 	})
-
+	mux.HandleFunc("/api/users", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			getUsersHandler(w, database)
+		case http.MethodPost:
+			createUserHandler(w, r, database)
+		default:
+			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
 	handler := cors(mux)
 
 	slog.Info("HTTP API listening", "port", port)
@@ -138,6 +149,41 @@ func HostApi(port string, collector *metrics.Collector, startedAt time.Time) {
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		slog.Error("HTTP API stopped", "error", err)
 	}
+}
+func createUserHandler(w http.ResponseWriter, r *http.Request, database *sql.DB) {
+	login := r.FormValue("login")
+	fname := r.FormValue("fname")
+	sname := r.FormValue("sname")
+	role := r.FormValue("role")
+	claimed := false //false → аккаунт создан админом, но ещё не забран | true  → пользователь уже активировал аккаунт
+	claimCode, err := identity.GenerateClaimCode()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "error create claimCodeHash")
+		return
+	}
+	claimCodeHash := sha256.Sum256([]byte(claimCode))
+
+	err = db.CreateClaimableUser(database, login, fname, sname, role, claimed, claimCodeHash[:])
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "error create CreateClaimableUse")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":         true,
+		"claim_code": claimCode,
+	})
+}
+func getUsersHandler(w http.ResponseWriter, database *sql.DB) {
+	users, err := db.GetAllUser(database)
+	if err != nil {
+		http.Error(w, "failed to get users", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	_ = json.NewEncoder(w).Encode(users)
 }
 func fullAddrs(h host.Host) ([]string, error) {
 	info := peer.AddrInfo{ID: h.ID(), Addrs: h.Addrs()}
@@ -151,4 +197,15 @@ func fullAddrs(h host.Host) ([]string, error) {
 	}
 	return out, nil
 
+}
+func writeJSON(w http.ResponseWriter, status int, payload any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func writeError(w http.ResponseWriter, status int, message string) {
+	writeJSON(w, status, map[string]string{
+		"error": message,
+	})
 }

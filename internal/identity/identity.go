@@ -79,3 +79,18 @@ func parseStoredIdentity(raw []byte) (crypto.PrivKey, error) {
 	}
 	return priv, nil
 }
+func GenerateClaimCode() (string, error) {
+	const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+	b := make([]byte, 8)
+
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+
+	for i := range b {
+		b[i] = alphabet[int(b[i])%len(alphabet)]
+	}
+
+	return string(b), nil
+}

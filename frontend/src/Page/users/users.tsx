@@ -1,6 +1,17 @@
-import './users.css'
-import { useMemo, useState } from 'react'
 
+import './users.css'
+import AddUserModal from './AddUserModal'
+import { useEffect, useMemo, useState } from 'react'
+
+type ApiUser = {
+  ID: number
+  Login: string
+  FName: string
+  SName: string
+  Role: string
+  Claimed: boolean
+  CreatedAt: number
+}
 type Student = {
   id: string
   name: string
@@ -12,28 +23,52 @@ type Student = {
 
 type SortOption = 'name' | 'role' | 'status'
 
-const students: Student[] = [
-  {
-    id: '123456',
-    name: 'Иван Иванов',
-    role: 'Ученик',
-    status: 'online',
-    statusLabel: 'В сети',
-    avatar: '👨‍🎓',
-  },
-  {
-    id: '849201',
-    name: 'Анна Петрова',
-    role: 'Учитель',
+function userToStudent(user: ApiUser): Student {
+  const isTeacher = user.Role === 'teacher'
+
+  return {
+    id: user.Login,
+    name: `${user.FName} ${user.SName}`,
+    role: isTeacher ? 'Учитель' : 'Ученик',
     status: 'offline',
     statusLabel: 'Не в сети',
-    avatar: '👩‍🏫',
-  },
-]
+    avatar: isTeacher ? '👩‍🏫' : '👨‍🎓',
+  }
+}
 
 function Students() {
+  const [students, setStudents] = useState<Student[]>([])
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<SortOption>('name')
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+
+  const loadUsers = async () => {
+    try {
+      const response = await fetch(
+        'http://localhost:8080/api/users'
+      )
+
+      if (!response.ok) {
+        throw new Error(
+          `Backend returned ${response.status}`
+        )
+      }
+
+      const users: ApiUser[] = await response.json()
+
+      if (!Array.isArray(users)) {
+        throw new Error('Backend returned invalid users data')
+      }
+
+      setStudents(users.map(userToStudent))
+    } catch (error) {
+      console.error('Ошибка загрузки пользователей:', error)
+    }
+  }
+
+  useEffect(() => {
+    loadUsers()
+  }, [])
 
   const filteredStudents = useMemo(() => {
     const query = search.toLowerCase().trim()
@@ -64,7 +99,64 @@ function Students() {
           return 0
       }
     })
-  }, [search, sortBy])
+  }, [students, search, sortBy])
+
+  const handleAddUser = async (user: {
+  id: string
+  role: 'Ученик' | 'Учитель'
+  name: string
+  surname: string
+}) => {
+  try {
+    const body = new URLSearchParams()
+
+    body.append('login', user.id)
+    body.append('fname', user.name)
+    body.append('sname', user.surname)
+
+    body.append(
+      'role',
+      user.role === 'Учитель'
+        ? 'teacher'
+        : 'student'
+    )
+
+    const response = await fetch(
+      'http://localhost:8080/api/users',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type':
+            'application/x-www-form-urlencoded',
+        },
+        body: body.toString(),
+      }
+    )
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => null)
+
+      throw new Error(
+        data?.error ||
+          `Не удалось создать пользователя (${response.status})`
+      )
+    }
+
+    await loadUsers()
+    setIsAddModalOpen(false)
+  } catch (error) {
+    console.error(
+      'Ошибка создания пользователя:',
+      error
+    )
+
+    if (error instanceof Error) {
+      alert(error.message)
+    } else {
+      alert('Не удалось создать пользователя')
+    }
+  }
+}
 
   return (
     <div className="students-page">
@@ -76,6 +168,7 @@ function Students() {
         </div>
 
         <div className="students-actions">
+
           <button className="secondary-button">
             Отсканировать список
           </button>
@@ -84,9 +177,20 @@ function Students() {
             Скачать список
           </button>
 
-          <button className="primary-button">
+          <button
+            className="primary-button"
+            onClick={() => setIsAddModalOpen(true)}
+          >
             + Добавить пользователя
           </button>
+
+          {isAddModalOpen && (
+            <AddUserModal
+              onClose={() => setIsAddModalOpen(false)}
+              onAdd={handleAddUser}
+            />
+          )}
+
         </div>
       </div>
 
@@ -120,10 +224,12 @@ function Students() {
       <div className="students-list">
 
         {filteredStudents.map((student) => (
+
           <div
             className="student-row"
             key={student.id}
           >
+
             <div className="student-main">
 
               <div className="student-avatar">
@@ -145,9 +251,11 @@ function Students() {
                 </div>
 
               </div>
+
             </div>
 
             <div className="student-status">
+
               <span
                 className={`status-dot ${student.status}`}
               />
@@ -155,12 +263,15 @@ function Students() {
               <span>
                 {student.statusLabel}
               </span>
+
             </div>
 
             <button className="student-menu-button">
               ⋮
             </button>
+
           </div>
+
         ))}
 
         {filteredStudents.length === 0 && (

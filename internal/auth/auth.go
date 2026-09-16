@@ -59,6 +59,7 @@ func (a *AuthHandler) handleRegister(stream network.Stream, data []byte) {
 		req.Login,
 		req.FName,
 		req.SName,
+		req.Role,
 		req.PasswordHash,
 		req.PasswordSalt,
 		req.LoginKeySalt,
