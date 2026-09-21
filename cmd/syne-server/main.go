@@ -4,12 +4,14 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"flag"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -28,6 +30,32 @@ import (
 
 type Server struct {
 	DB *sql.DB
+}
+
+// publicUser — то, что реально можно отдавать в панель лаборанта.
+// В отличие от db.User здесь нет хэшей пароля/ключей.
+type publicUser struct {
+	ID        int64  `json:"ID"`
+	Login     string `json:"Login"`
+	FName     string `json:"FName"`
+	SName     string `json:"SName"`
+	Role      string `json:"Role"`
+	Claimed   bool   `json:"Claimed"`
+	ClaimCode string `json:"ClaimCode"`
+	CreatedAt int64  `json:"CreatedAt"`
+}
+
+func toPublicUser(u db.User) publicUser {
+	return publicUser{
+		ID:        u.ID,
+		Login:     u.Login,
+		FName:     u.FName,
+		SName:     u.SName,
+		Role:      u.Role,
+		Claimed:   u.Claimed,
+		ClaimCode: u.ClaimCode,
+		CreatedAt: u.CreatedAt,
+	}
 }
 
 func ConnectToDB(path string) (*sql.DB, error) {
@@ -106,7 +134,7 @@ func main() {
 func cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
 		if r.Method == http.MethodOptions {
@@ -139,7 +167,23 @@ func HostApi(port string, collector *metrics.Collector, startedAt time.Time, dat
 			createUserHandler(w, r, database)
 		default:
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	mux.HandleFunc("/api/users/", func(w http.ResponseWriter, r *http.Request) {
+		login := strings.TrimPrefix(r.URL.Path, "/api/users/")
+		login = strings.Trim(login, "/")
+		if login == "" {
+			writeError(w, http.StatusBadRequest, "login is required")
+			return
+		}
+
+		switch r.Method {
+		case http.MethodPatch:
+			updateUserHandler(w, r, database, login)
+		case http.MethodDelete:
+			deleteUserHandler(w, database, login)
+		default:
+			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		}
 	})
 	handler := cors(mux)
@@ -163,9 +207,15 @@ func createUserHandler(w http.ResponseWriter, r *http.Request, database *sql.DB)
 	}
 	claimCodeHash := sha256.Sum256([]byte(claimCode))
 
-	err = db.CreateClaimableUser(database, login, fname, sname, role, claimed, claimCodeHash[:])
+	err = db.CreateClaimableUser(database, login, fname, sname, role, claimed, claimCode, claimCodeHash[:])
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "error create CreateClaimableUse")
+		reason := "error create CreateClaimableUser"
+		status := http.StatusInternalServerError
+		if errors.Is(err, db.ErrLoginAlreadyExists) {
+			reason = "login already exists"
+			status = http.StatusBadRequest
+		}
+		writeError(w, status, reason)
 		return
 	}
 
@@ -174,6 +224,58 @@ func createUserHandler(w http.ResponseWriter, r *http.Request, database *sql.DB)
 		"claim_code": claimCode,
 	})
 }
+
+func updateUserHandler(w http.ResponseWriter, r *http.Request, database *sql.DB, login string) {
+	var req struct {
+		FName string `json:"fname"`
+		SName string `json:"sname"`
+		Role  string `json:"role"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	defer r.Body.Close()
+
+	if strings.TrimSpace(req.FName) == "" || strings.TrimSpace(req.SName) == "" {
+		writeError(w, http.StatusBadRequest, "fname and sname are required")
+		return
+	}
+
+	if err := db.UpdateUser(database, login, req.FName, req.SName, req.Role); err != nil {
+		status := http.StatusInternalServerError
+		reason := "failed to update user"
+		if errors.Is(err, db.ErrUserNotFound) {
+			status = http.StatusNotFound
+			reason = "user not found"
+		}
+		writeError(w, status, reason)
+		return
+	}
+
+	user, err := db.GetUserByLogin(database, login)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load updated user")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, toPublicUser(*user))
+}
+
+func deleteUserHandler(w http.ResponseWriter, database *sql.DB, login string) {
+	if err := db.DeleteUser(database, login); err != nil {
+		status := http.StatusInternalServerError
+		reason := "failed to delete user"
+		if errors.Is(err, db.ErrUserNotFound) {
+			status = http.StatusNotFound
+			reason = "user not found"
+		}
+		writeError(w, status, reason)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
 func getUsersHandler(w http.ResponseWriter, database *sql.DB) {
 	users, err := db.GetAllUser(database)
 	if err != nil {
@@ -181,9 +283,12 @@ func getUsersHandler(w http.ResponseWriter, database *sql.DB) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	out := make([]publicUser, 0, len(users))
+	for _, u := range users {
+		out = append(out, toPublicUser(u))
+	}
 
-	_ = json.NewEncoder(w).Encode(users)
+	writeJSON(w, http.StatusOK, out)
 }
 func fullAddrs(h host.Host) ([]string, error) {
 	info := peer.AddrInfo{ID: h.ID(), Addrs: h.Addrs()}

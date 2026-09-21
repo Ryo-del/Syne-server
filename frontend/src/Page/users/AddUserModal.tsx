@@ -2,15 +2,18 @@
 import './add-user-modal.css'
 import { useState } from 'react'
 
-type AddUserModalProps = {
-  onClose: () => void
+type UserFormValues = {
+  id: string
+  role: 'Ученик' | 'Учитель'
+  name: string
+  surname: string
+}
 
-  onAdd: (user: {
-    id: string
-    role: 'Ученик' | 'Учитель'
-    name: string
-    surname: string
-  }) => void
+type AddUserModalProps = {
+  mode: 'create' | 'edit'
+  initialUser?: UserFormValues
+  onClose: () => void
+  onSubmit: (user: UserFormValues) => void
 }
 
 function generateId() {
@@ -20,29 +23,33 @@ function generateId() {
 }
 
 function AddUserModal({
+  mode,
+  initialUser,
   onClose,
-  onAdd,
+  onSubmit,
 }: AddUserModalProps) {
+  const isEdit = mode === 'edit'
 
-  const [id, setId] = useState(generateId())
+  const [id, setId] = useState(
+    initialUser?.id ?? generateId()
+  )
 
-  const [role, setRole] =
-    useState<'Ученик' | 'Учитель'>('Ученик')
+  const [role, setRole] = useState<'Ученик' | 'Учитель'>(
+    initialUser?.role ?? 'Ученик'
+  )
 
-  const [name, setName] = useState('')
+  const [name, setName] = useState(initialUser?.name ?? '')
 
-  const [surname, setSurname] = useState('')
+  const [surname, setSurname] = useState(
+    initialUser?.surname ?? ''
+  )
 
   const handleSubmit = () => {
-
-    if (
-      !name.trim() ||
-      !surname.trim()
-    ) {
+    if (!name.trim() || !surname.trim()) {
       return
     }
 
-    onAdd({
+    onSubmit({
       id,
       role,
       name: name.trim(),
@@ -66,8 +73,16 @@ function AddUserModal({
         <div className="modal-header">
 
           <div>
-            <h2>Добавить пользователя</h2>
-            <p>Создание нового пользователя</p>
+            <h2>
+              {isEdit
+                ? 'Редактировать пользователя'
+                : 'Добавить пользователя'}
+            </h2>
+            <p>
+              {isEdit
+                ? 'Изменение данных пользователя'
+                : 'Создание нового пользователя'}
+            </p>
           </div>
 
           <button
@@ -91,6 +106,7 @@ function AddUserModal({
                 type="text"
                 value={id}
                 maxLength={6}
+                disabled={isEdit}
                 onChange={(e) =>
                   setId(
                     e.target.value
@@ -100,17 +116,25 @@ function AddUserModal({
                 }
               />
 
-              <button
-                className="generate-id-button"
-                title="Сгенерировать ID"
-                onClick={() =>
-                  setId(generateId())
-                }
-              >
-                🎲
-              </button>
+              {!isEdit && (
+                <button
+                  className="generate-id-button"
+                  title="Сгенерировать ID"
+                  onClick={() =>
+                    setId(generateId())
+                  }
+                >
+                  🎲
+                </button>
+              )}
 
             </div>
+
+            {isEdit && (
+              <p className="form-field-hint">
+                Логин нельзя изменить после создания
+              </p>
+            )}
 
           </div>
 
@@ -205,7 +229,7 @@ function AddUserModal({
             }
             onClick={handleSubmit}
           >
-            Добавить
+            {isEdit ? 'Сохранить' : 'Добавить'}
           </button>
 
         </div>

@@ -42,6 +42,9 @@ func (a *AuthHandler) HandleStream(stream network.Stream) {
 	case protocol.AuthTypeLoginRequest:
 		a.handleLogin(stream, data)
 
+	case protocol.AuthTypeClaimRequest:
+		a.handleClaim(stream, data)
+
 	default:
 		slog.Error("unknown message type", "type", msgType)
 	}
@@ -159,7 +162,28 @@ func (a *AuthHandler) handleLogin(stream network.Stream, firstMsg []byte) {
 		return
 	}
 
-	// Пользователь найден.
+	// Аккаунт создан лаборантом, но ещё не активирован учеником через claim-код.
+	// Пароль ещё не существует, поэтому дальнейшая проверка пароля не имеет смысла.
+	if !user.Claimed {
+		response := protocol.LoginFailure{
+			Type:   protocol.AuthTypeLoginFailure,
+			Reason: "account not activated",
+		}
+
+		data, err := protocol.MarshalJSON(response)
+		if err != nil {
+			slog.Error("failed to marshal LoginFailure", "err", err)
+			return
+		}
+
+		if err := protocol.WriteFramedMessage(stream, data); err != nil {
+			slog.Error("failed to write LoginFailure", "err", err)
+		}
+
+		return
+	}
+
+	// Пользователь найден и активирован.
 	// Отправляем соли клиенту.
 	response := protocol.LoginChallenge{
 		Type:         protocol.AuthTypeLoginChallenge,
@@ -264,5 +288,98 @@ func (a *AuthHandler) handleLogin(stream network.Stream, firstMsg []byte) {
 	if err := protocol.WriteFramedMessage(stream, data); err != nil {
 		slog.Error("failed to write LoginSuccess", "err", err)
 		return
+	}
+}
+
+// handleClaim активирует аккаунт, созданный лаборантом с login+claimCode,
+// сверяя код и сохраняя выбранный учеником пароль и ключи.
+func (a *AuthHandler) handleClaim(stream network.Stream, data []byte) {
+	req, err := protocol.UnmarshalJSON[protocol.ClaimRequest](data)
+	if err != nil {
+		slog.Error("failed to unmarshal ClaimRequest", "err", err)
+		return
+	}
+
+	err = db.ClaimUser(
+		a.DB,
+		req.Login,
+		req.ClaimCode,
+		req.PasswordHash,
+		req.PasswordSalt,
+		req.LoginKeySalt,
+		req.EncryptedMasterKey,
+		req.IdentityPublicKey,
+		req.EncryptedIdentityKey,
+	)
+	if err != nil {
+		reason := "internal error"
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			reason = "login not found"
+		case errors.Is(err, db.ErrAlreadyClaimed):
+			reason = "account already activated"
+		case errors.Is(err, db.ErrInvalidClaimCode):
+			reason = "invalid claim code"
+		}
+
+		response := protocol.ClaimFailure{
+			Type:   protocol.AuthTypeClaimFailure,
+			Reason: reason,
+		}
+
+		marshaled, mErr := protocol.MarshalJSON(response)
+		if mErr != nil {
+			slog.Error("failed to marshal ClaimFailure", "err", mErr)
+			return
+		}
+
+		if err := protocol.WriteFramedMessage(stream, marshaled); err != nil {
+			slog.Error("failed to write ClaimFailure", "err", err)
+		}
+
+		return
+	}
+
+	user, err := db.GetUserByLogin(a.DB, req.Login)
+	if err != nil {
+		slog.Error("failed to reload claimed user", "err", err)
+		return
+	}
+
+	peerID := stream.Conn().RemotePeer().String()
+	sessionID, err := db.CreateSession(a.DB, user.ID, peerID, 24*time.Hour)
+	if err != nil {
+		slog.Error("failed to create session after claim", "err", err)
+
+		response := protocol.ClaimFailure{
+			Type:   protocol.AuthTypeClaimFailure,
+			Reason: "internal error",
+		}
+		marshaled, mErr := protocol.MarshalJSON(response)
+		if mErr != nil {
+			return
+		}
+		_ = protocol.WriteFramedMessage(stream, marshaled)
+		return
+	}
+
+	response := protocol.ClaimSuccess{
+		Type:                 protocol.AuthTypeClaimSuccess,
+		SessionID:            sessionID,
+		FName:                user.FName,
+		SName:                user.SName,
+		EncryptedMasterKey:   user.EncryptedMasterKey,
+		IdentityPublicKey:    user.IdentityPublicKey,
+		EncryptedIdentityKey: user.EncryptedIdentityKey,
+	}
+
+	marshaled, err := protocol.MarshalJSON(response)
+	if err != nil {
+		slog.Error("failed to marshal ClaimSuccess", "err", err)
+		return
+	}
+
+	if err := protocol.WriteFramedMessage(stream, marshaled); err != nil {
+		slog.Error("failed to write ClaimSuccess", "err", err)
 	}
 }
