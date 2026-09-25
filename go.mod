@@ -3,7 +3,7 @@ module server
 go 1.26.5
 
 require (
-	github.com/Ryo-del/Syne-protocol v0.0.0-20260906145911-79d904a8d890
+	github.com/Ryo-del/Syne-protocol v0.0.2-0.20260923083058-a8c66588c87d
 	github.com/libp2p/go-libp2p v0.48.0
 	github.com/shirou/gopsutil/v4 v4.26.8
 	modernc.org/sqlite v1.58.0
@@ -37,6 +37,7 @@ require (
 	github.com/libp2p/go-netroute v0.4.0 // indirect
 	github.com/libp2p/go-reuseport v0.4.0 // indirect
 	github.com/libp2p/go-yamux/v5 v5.0.1 // indirect
+	github.com/libp2p/zeroconf/v2 v2.2.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/marten-seemann/tcp v0.0.0-20210406111302-dfbc87cc63fd // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect

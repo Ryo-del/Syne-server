@@ -271,7 +271,14 @@ func DeleteUser(db *sql.DB, login string) error {
 		_ = tx.Rollback()
 		return ErrUserNotFound
 	}
-
+	if _, err := tx.Exec(`DELETE FROM vaults WHERE login = ?`, login); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM mailbox WHERE to_login = ? OR from_login = ?`, login, login); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
 	return tx.Commit()
 }
 
@@ -382,5 +389,5 @@ func InitSchema(db *sql.DB) error {
 	// Миграция для БД, созданных до появления колонки claim_code.
 	_, _ = db.Exec(`ALTER TABLE users ADD COLUMN claim_code TEXT NOT NULL DEFAULT ''`)
 
-	return nil
+	return initSyncSchema(db)
 }

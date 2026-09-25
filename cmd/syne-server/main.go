@@ -21,16 +21,30 @@ import (
 	identity "server/internal/identity"
 	metrics "server/internal/metrics"
 	presence "server/internal/presence"
+	vault "server/internal/vault"
 
 	protocol "github.com/Ryo-del/Syne-protocol"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	mdns "github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 )
 
 type Server struct {
 	DB *sql.DB
 }
+
+// studyServerMDNSService — имя mDNS-сервиса, на котором study-сервер
+// анонсирует себя, чтобы клиенты находили его автоматически, без ручного
+// ввода адреса. ВАЖНО: должно дословно совпадать со строкой
+// studyServerMDNSService в Syne/core/transport/p2p/discovery_server.go.
+const studyServerMDNSService = "_syne-study-server._tcp"
+
+// noopNotifee — серверу не нужно обнаруживать других через mDNS, только
+// самому анонсироваться, поэтому обработчик найденных пиров пустой.
+type noopNotifee struct{}
+
+func (noopNotifee) HandlePeerFound(peer.AddrInfo) {}
 
 // publicUser — то, что реально можно отдавать в панель лаборанта.
 // В отличие от db.User здесь нет хэшей пароля/ключей.
@@ -96,6 +110,20 @@ func main() {
 		slog.Error("error create host", "error", err)
 		return
 	}
+
+	// Анонсируем себя через mDNS, чтобы клиенты в той же локальной сети
+	// находили сервер автоматически, без ручного ввода multiaddr.
+	// Работает только в пределах одного L2-сегмента (Wi-Fi точка доступа /
+	// свитч) — через роутеры и интернет mDNS не проходит; для таких случаев
+	// клиент по-прежнему поддерживает ручной адрес как запасной вариант.
+	serverDiscovery := mdns.NewMdnsService(host, studyServerMDNSService, noopNotifee{})
+	if err := serverDiscovery.Start(); err != nil {
+		slog.Warn("failed to start LAN discovery advertisement", "error", err)
+	} else {
+		defer serverDiscovery.Close()
+		slog.Info("advertising study server via mDNS", "service", studyServerMDNSService)
+	}
+
 	database, err := ConnectToDB("storage/syne.db")
 	if err != nil {
 		slog.Error("error to create database")
@@ -123,6 +151,7 @@ func main() {
 	host.SetStreamHandler(protocol.AuthStreamProtocol, authHandler.HandleStream)
 	presenceHandler := presence.NewPresenceHandler()
 	host.SetStreamHandler(protocol.PresenceStreamProtocol, presenceHandler.HandleStream)
+	host.SetStreamHandler(protocol.SyncStreamProtocol, vault.NewHandler(database).HandleStream)
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh

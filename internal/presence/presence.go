@@ -11,6 +11,7 @@ import (
 type presenceClient struct {
 	stream  network.Stream
 	writeMu sync.Mutex
+	user    protocol.PresenceUser
 }
 
 type PresenceHandler struct {
@@ -23,6 +24,7 @@ func NewPresenceHandler() *PresenceHandler {
 		clients: make(map[string]*presenceClient),
 	}
 }
+
 func (h *PresenceHandler) HandleStream(stream network.Stream) {
 	// 1. Читаем PresenceOnline.
 	data, err := protocol.ReadFramedMessage(stream)
@@ -38,30 +40,39 @@ func (h *PresenceHandler) HandleStream(stream network.Stream) {
 	}
 
 	userID := online.UserID
+	if userID == "" {
+		stream.Close()
+		return
+	}
 
 	client := &presenceClient{
 		stream: stream,
+		user: protocol.PresenceUser{
+			UserID: userID,
+			PeerID: online.PeerID,
+			FName:  online.FName,
+			SName:  online.SName,
+		},
 	}
 
 	// 2. Регистрируем клиента.
 	h.mu.Lock()
 
-	// Если UserID уже зарегистрирован, закрываем старое соединение.
+	// Если UserID уже зарегистрирован (например, переподключение после
+	// разрыва сети), закрываем старое соединение — новое главнее.
 	if oldClient, exists := h.clients[userID]; exists {
 		oldClient.stream.Close()
 	}
 
 	h.clients[userID] = client
 
-	// 3. Собираем snapshot.
-	snapshot := make([]string, 0, len(h.clients)-1)
-
-	for id := range h.clients {
+	// 3. Собираем snapshot — уже с полными данными, а не только с ID.
+	snapshot := make([]protocol.PresenceUser, 0, len(h.clients)-1)
+	for id, c := range h.clients {
 		if id == userID {
 			continue
 		}
-
-		snapshot = append(snapshot, id)
+		snapshot = append(snapshot, c.user)
 	}
 
 	h.mu.Unlock()
@@ -83,19 +94,20 @@ func (h *PresenceHandler) HandleStream(stream network.Stream) {
 		userID,
 		protocol.PresenceUpdate{
 			Type:   protocol.PresenceTypeUpdate,
-			UserID: userID,
+			User:   client.user,
 			Status: protocol.PresenceStatusOnline,
 		},
 	)
+
 	_, _ = io.Copy(io.Discard, stream)
 
-	// 7. Удаляем клиента и сообщаем остальным об offline.
+	// 6. Удаляем клиента и сообщаем остальным об offline.
 	if h.removeClient(userID, client) {
 		h.broadcastUpdate(
 			userID,
 			protocol.PresenceUpdate{
 				Type:   protocol.PresenceTypeUpdate,
-				UserID: userID,
+				User:   client.user,
 				Status: protocol.PresenceStatusOffline,
 			},
 		)
@@ -139,8 +151,6 @@ func (h *PresenceHandler) removeClient(
 		return false
 	}
 
-	// Не удаляем новый connection, если старый connection
-	// внезапно отключился после его замены.
 	if current != client {
 		return false
 	}
