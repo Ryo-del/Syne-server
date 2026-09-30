@@ -1,45 +1,58 @@
 import './App.css'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { invoke } from '@tauri-apps/api/core'
 import Monitoring from './Page/monitoring/monitoring'
 import CPU from './Page/MetricWindows/CPU/CPU'
 import RAM from './Page/MetricWindows/RAM/RAM'
 import Network from './Page/MetricWindows/Network/Network'
 import OnlineUsers from './Page/MetricWindows/Online Users/OnlineUsers'
 import Connections from './Page/MetricWindows/Connections/Connections'
+import Settings from './Page/settings/Settings'
 import Study from './Page/MetricWindows/Study/Study'
 import Teacher from './Page/MetricWindows/Teacher/Teacher'
 import Errors from './Page/MetricWindows/Errors/Errors'
 import User from './Page/users/users'
-function App() {
-    const [activePage, setActivePage] = useState('monitoring')
-     const path = window.location.pathname
+import SetupWindow from './Page/Setup/SetupWindow'
 
+function App() {
+  
+  const [activePage, setActivePage] = useState('monitoring')
+  // null = ещё проверяем, false = первый запуск, true = уже настроен
+  const [configured, setConfigured] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    invoke<boolean>('is_configured')
+      .then(setConfigured)
+      .catch((e) => {
+        console.error('is_configured failed', e)
+        setConfigured(false) // лучше показать настройку, чем пустой экран
+      })
+  }, [])
+
+  const path = window.location.pathname
+
+  // Окна метрик — отдельные окна, проверка конфига им не нужна
   switch (path) {
     case '/metric/cpu':
       return <CPU />
-
     case '/metric/ram':
       return <RAM />
-
     case '/metric/network':
       return <Network />
-
     case '/metric/online-users':
       return <OnlineUsers />
-
     case '/metric/connections':
       return <Connections />
-
     case '/metric/study':
       return <Study />
-
     case '/metric/teacher':
       return <Teacher />
-
     case '/metric/errors':
       return <Errors />
-
   }
+
+  if (configured === null) return null // можно поставить спиннер
+  if (!configured) return <SetupWindow onDone={() => setConfigured(true)} />
 
   return (
     <div className="app">
@@ -50,34 +63,19 @@ function App() {
         </div>
 
         <nav>
-          <button className={`nav-item ${activePage === 'monitoring' ? 'active' : ''}`}
+          <button
+            className={`nav-item ${activePage === 'monitoring' ? 'active' : ''}`}
             onClick={() => setActivePage('monitoring')}
           >
             <span>📊</span>
-            
             Мониторинг
           </button>
-
-          <button className={`nav-item ${activePage === 'users' ? 'active' : ''}`}
+          <button
+            className={`nav-item ${activePage === 'users' ? 'active' : ''}`}
             onClick={() => setActivePage('users')}
           >
             <span>🎓</span>
             Ученики
-          </button>
-
-          <button className="nav-item">
-            <span>👥</span>
-            Группы
-          </button>
-
-          <button className="nav-item">
-            <span>🗓️</span>
-            Расписание
-          </button>
-
-          <button className="nav-item">
-            <span>📝</span>
-            Тесты
           </button>
 
           <button className="nav-item">
@@ -86,7 +84,7 @@ function App() {
           </button>
 
           <button className="nav-item">
-            <span>🔔</span>
+            <span>📣</span>
             Уведомления
           </button>
 
@@ -96,26 +94,25 @@ function App() {
           </button>
 
           <button className="nav-item">
-            <span>🗄️</span>
-            База данных
-          </button>
-
-          <button className="nav-item">
             <span>📋</span>
             Журнал событий
           </button>
         </nav>
 
-        <button className="nav-item settings">
+        <button
+          className={`nav-item settings ${activePage === 'settings' ? 'active' : ''}`}
+          onClick={() => setActivePage('settings')}
+        >
           <span>⚙</span>
           Settings
         </button>
       </aside>
 
       <main className="main">
-     {activePage === 'monitoring' && <Monitoring />}
+        {activePage === 'monitoring' && <Monitoring />}
         {activePage === 'users' && <User />}
-        {activePage === 'settings' && <h1>Settings</h1>}
+        {activePage === 'settings' && <Settings />}
+        
       </main>
     </div>
   )

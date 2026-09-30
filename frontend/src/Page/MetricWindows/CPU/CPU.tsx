@@ -9,6 +9,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { useEffect, useState } from 'react'
+import { apiBase } from '../../../api'
 
 type Point = {
   timestamp: string
@@ -26,9 +27,12 @@ function CPU() {
   const [current, setCurrent] = useState(0)
 
   useEffect(() => {
+    let cancelled = false
+
     const loadCPU = async () => {
       try {
-        const response = await fetch('http://localhost:8080/api/metrics/cpu')
+        const base = await apiBase()
+        const response = await fetch(`${base}/api/metrics/cpu`)
 
         if (!response.ok) {
           throw new Error('Failed to fetch CPU metrics')
@@ -36,8 +40,8 @@ function CPU() {
 
         const result: CPUResponse = await response.json()
 
-console.log('CPU API RESULT:', result)
-console.log('CPU POINTS:', result.points.length)
+        if (cancelled) return
+
         setData(result.points)
 
         if (result.points.length > 0) {
@@ -52,7 +56,10 @@ console.log('CPU POINTS:', result.points.length)
 
     const interval = setInterval(loadCPU, 1000)
 
-    return () => clearInterval(interval)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
   }, [])
 
   const chartData = data.map((point) => ({
@@ -68,18 +75,12 @@ console.log('CPU POINTS:', result.points.length)
     <main className="metric-window">
       <header className="metric-header">
         <div>
-          <h1 className="metric-title">
-            CPU
-          </h1>
+          <h1 className="metric-title">CPU</h1>
 
-          <p className="metric-description">
-            Processor usage
-          </p>
+          <p className="metric-description">Processor usage</p>
         </div>
 
-        <strong className="metric-value">
-          {current.toFixed(1)}%
-        </strong>
+        <strong className="metric-value">{current.toFixed(1)}%</strong>
       </header>
 
       <div className="metric-chart">
@@ -87,16 +88,9 @@ console.log('CPU POINTS:', result.points.length)
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
 
-            <XAxis
-              dataKey="time"
-              tick={{ fontSize: 11 }}
-            />
+            <XAxis dataKey="time" tick={{ fontSize: 11 }} />
 
-            <YAxis
-              domain={[0, 100]}
-              tick={{ fontSize: 11 }}
-              unit="%"
-            />
+            <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} unit="%" />
 
             <Tooltip
               formatter={(value) => [`${Number(value).toFixed(1)}%`, 'CPU']}

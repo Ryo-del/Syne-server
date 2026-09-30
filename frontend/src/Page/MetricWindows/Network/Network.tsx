@@ -9,7 +9,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { useEffect, useState } from 'react'
-
+import { apiBase } from '../../../api'
 type NetworkPoint = {
   timestamp: string
   download: number
@@ -30,9 +30,8 @@ function Network() {
   useEffect(() => {
     const loadNetwork = async () => {
       try {
-        const response = await fetch(
-          'http://localhost:8080/api/metrics/network'
-        )
+        const base = await apiBase()
+        const response = await fetch(`${base}/api/metrics/network`)
 
         if (!response.ok) {
           throw new Error('Failed to fetch network metrics')

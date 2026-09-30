@@ -9,7 +9,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { useEffect, useState } from 'react'
-
+import { apiBase } from '../../../api'
 type Point = {
   timestamp: string
   value: number
@@ -30,9 +30,8 @@ function RAM() {
   useEffect(() => {
     const loadRAM = async () => {
       try {
-        const response = await fetch(
-          'http://localhost:8080/api/metrics/ram'
-        )
+        const base = await apiBase()
+        const response = await fetch(`${base}/api/metrics/ram`)
 
         if (!response.ok) {
           throw new Error('Failed to fetch RAM metrics')

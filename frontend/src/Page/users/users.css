@@ -27,7 +27,8 @@
   display: flex;
   gap: 10px;
 }
-
+.status-dot.authorized { background: #22c55e; }
+.status-dot.pending    { background: #f59e0b; }
 .students-actions button {
   border: none;
   border-radius: 9px;

@@ -2,7 +2,7 @@
 import './users.css'
 import AddUserModal from './AddUserModal'
 import { useEffect, useMemo, useRef, useState } from 'react'
-
+type StudentStatus = 'online' | 'offline' | 'authorized' | 'pending'
 type ApiUser = {
   ID: number
   Login: string
@@ -21,8 +21,9 @@ type Student = {
   name: string
   role: 'Ученик' | 'Учитель'
   roleCode: 'student' | 'teacher'
-  status: 'online' | 'offline'
+  status: StudentStatus
   statusLabel: string
+
   avatar: string
   claimCode: string
 }
@@ -34,7 +35,12 @@ type ContextMenuState = {
   x: number
   y: number
 }
-
+const statusRank: Record<StudentStatus, number> = {
+  online: 0,
+  authorized: 1,
+  offline: 2,
+  pending: 3,
+}
 type ModalState =
   | { mode: 'create' }
   | { mode: 'edit'; student: Student }
@@ -50,8 +56,8 @@ function userToStudent(user: ApiUser): Student {
     name: `${user.FName} ${user.SName}`,
     role: isTeacher ? 'Учитель' : 'Ученик',
     roleCode: isTeacher ? 'teacher' : 'student',
-    status: 'offline',
-    statusLabel: 'Не в сети',
+    status: user.Claimed ? 'authorized' : 'pending',
+    statusLabel: user.Claimed ? 'Авторизован' : 'Ожидает активации',
     avatar: isTeacher ? '👩‍🏫' : '👨‍🎓',
     claimCode: user.ClaimCode ?? '',
   }
@@ -100,7 +106,11 @@ function Students() {
     if (!contextMenu) {
       return
     }
-
+    useEffect(() => {
+  loadUsers()
+  const timer = setInterval(loadUsers, 5000)
+  return () => clearInterval(timer)
+}, [])
     function handleClickOutside(event: MouseEvent) {
       if (
         contextMenuRef.current &&
@@ -138,6 +148,8 @@ function Students() {
 
     return [...filtered].sort((a, b) => {
       switch (sortBy) {
+        case 'status':
+  return statusRank[a.status] - statusRank[b.status]
         case 'name':
           return a.name.localeCompare(b.name, 'ru')
 

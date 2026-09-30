@@ -1,5 +1,6 @@
 import './monitoring.css'
 import { openMetric } from '../../MetricWindow'
+import { apiBase } from '../../api'
 import { useEffect, useState } from 'react'
 
 type Point = {
@@ -45,129 +46,115 @@ function Monitoring() {
   const [uptime, setUptime] = useState(0)
 
   useEffect(() => {
-  const loadMetrics = async () => {
-    try {
-      const [
-        cpuResponse,
-        ramResponse,
-        diskResponse,
-        networkResponse,
-      ] = await Promise.all([
-        fetch('http://localhost:8080/api/metrics/cpu'),
-        fetch('http://localhost:8080/api/metrics/ram'),
-        fetch('http://localhost:8080/api/metrics/disk'),
-        fetch('http://localhost:8080/api/metrics/network'),
-      ])
+    let cancelled = false
 
-      if (
-        !cpuResponse.ok ||
-        !ramResponse.ok ||
-        !diskResponse.ok ||
-        !networkResponse.ok
-      ) {
-        throw new Error('Failed to fetch metrics')
+    const loadMetrics = async () => {
+      try {
+        const base = await apiBase()
+
+        const [
+          cpuResponse,
+          ramResponse,
+          diskResponse,
+          networkResponse,
+        ] = await Promise.all([
+          fetch(`${base}/api/metrics/cpu`),
+          fetch(`${base}/api/metrics/ram`),
+          fetch(`${base}/api/metrics/disk`),
+          fetch(`${base}/api/metrics/network`),
+        ])
+
+        if (
+          !cpuResponse.ok ||
+          !ramResponse.ok ||
+          !diskResponse.ok ||
+          !networkResponse.ok
+        ) {
+          throw new Error('Failed to fetch metrics')
+        }
+
+        const cpuData: MetricResponse = await cpuResponse.json()
+        const ramData: MetricResponse = await ramResponse.json()
+        const diskData: MetricResponse = await diskResponse.json()
+        const networkData: NetworkResponse = await networkResponse.json()
+
+        if (cancelled) return
+
+        // CPU
+        if (cpuData.points.length > 0) {
+          setCPU(cpuData.points[cpuData.points.length - 1].value)
+        }
+
+        // RAM
+        if (ramData.points.length > 0) {
+          setRAM(ramData.points[ramData.points.length - 1].value)
+        }
+
+        if (ramData.total !== undefined) {
+          setRAMTotal(ramData.total)
+        }
+
+        // Disk
+        if (diskData.points.length > 0) {
+          setDisk(diskData.points[diskData.points.length - 1].value)
+        }
+
+        if (diskData.total !== undefined) {
+          setDiskTotal(diskData.total)
+        }
+
+        // Network
+        if (networkData.points.length > 0) {
+          const current = networkData.points[networkData.points.length - 1]
+
+          setDownload(current.download)
+          setUpload(current.upload)
+        }
+      } catch (err) {
+        console.error('Monitoring metrics error:', err)
       }
-
-      const cpuData: MetricResponse =
-        await cpuResponse.json()
-
-      const ramData: MetricResponse =
-        await ramResponse.json()
-
-      const diskData: MetricResponse =
-        await diskResponse.json()
-
-      const networkData: NetworkResponse =
-        await networkResponse.json()
-
-      // CPU
-      if (cpuData.points.length > 0) {
-        setCPU(
-          cpuData.points[cpuData.points.length - 1].value
-        )
-      }
-
-      // RAM
-      if (ramData.points.length > 0) {
-        setRAM(
-          ramData.points[ramData.points.length - 1].value
-        )
-      }
-
-      if (ramData.total !== undefined) {
-        setRAMTotal(ramData.total)
-      }
-
-      // Disk
-      if (diskData.points.length > 0) {
-        setDisk(
-          diskData.points[diskData.points.length - 1].value
-        )
-      }
-
-      if (diskData.total !== undefined) {
-        setDiskTotal(diskData.total)
-      }
-
-      // Network
-      if (networkData.points.length > 0) {
-        const current =
-          networkData.points[
-            networkData.points.length - 1
-          ]
-
-        setDownload(current.download)
-        setUpload(current.upload)
-      }
-    } catch (err) {
-      console.error('Monitoring metrics error:', err)
     }
-  }
 
-  const loadUptime = async () => {
-    try {
-      const response = await fetch(
-        'http://localhost:8080/api/uptime'
-      )
+    const loadUptime = async () => {
+      try {
+        const base = await apiBase()
+        const response = await fetch(`${base}/api/uptime`)
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch uptime')
+        if (!response.ok) {
+          throw new Error('Failed to fetch uptime')
+        }
+
+        const data: UptimeResponse = await response.json()
+
+        if (!cancelled) {
+          setUptime(data.seconds)
+        }
+      } catch (err) {
+        console.error('Uptime error:', err)
       }
-
-      const data: UptimeResponse =
-        await response.json()
-
-      setUptime(data.seconds)
-    } catch (err) {
-      console.error('Uptime error:', err)
     }
-  }
 
-  loadMetrics()
-  loadUptime()
+    loadMetrics()
+    loadUptime()
 
-  const metricsInterval = setInterval(loadMetrics, 1000)
-  const uptimeInterval = setInterval(loadUptime, 1000)
+    const metricsInterval = setInterval(loadMetrics, 1000)
+    const uptimeInterval = setInterval(loadUptime, 1000)
 
-  return () => {
-    clearInterval(metricsInterval)
-    clearInterval(uptimeInterval)
-  }
-}, [])
+    return () => {
+      cancelled = true
+      clearInterval(metricsInterval)
+      clearInterval(uptimeInterval)
+    }
+  }, [])
 
-  const diskPercent =
-    diskTotal > 0 ? (disk / diskTotal) * 100 : 0
+  const diskPercent = diskTotal > 0 ? (disk / diskTotal) * 100 : 0
 
   const formatUptime = (seconds: number) => {
     const totalSeconds = Math.floor(seconds)
 
     const days = Math.floor(totalSeconds / 86400)
-    const hours = Math.floor(
-      (totalSeconds % 86400) / 3600
-    )
-    const minutes = Math.floor(
-      (totalSeconds % 3600) / 60
-    )
+    const hours = Math.floor((totalSeconds % 86400) / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
 
     return `${days}d ${hours}h ${minutes}m`
   }
@@ -202,9 +189,7 @@ function Monitoring() {
           CPU
         </button>
 
-        <span className="param-value">
-          {cpu.toFixed(1)}%
-        </span>
+        <span className="param-value">{cpu.toFixed(1)}%</span>
       </div>
 
       <div className="table-row">
@@ -244,9 +229,7 @@ function Monitoring() {
       <div className="table-row">
         <span className="param-name">Syne Web</span>
 
-        <span className="param-value status-online">
-          online
-        </span>
+        <span className="param-value status-online">online</span>
       </div>
 
       {/* Users */}
@@ -261,7 +244,7 @@ function Monitoring() {
           Online Users
         </button>
 
-        <span className="param-value">347</span>
+        <span className="param-value">1</span>
       </div>
 
       <div className="table-row">
@@ -272,7 +255,7 @@ function Monitoring() {
           Connections
         </button>
 
-        <span className="param-value">412</span>
+        <span className="param-value">3</span>
       </div>
 
       <div className="table-row">
@@ -283,7 +266,7 @@ function Monitoring() {
           Study
         </button>
 
-        <span className="param-value">300</span>
+        <span className="param-value">2</span>
       </div>
 
       <div className="table-row">
@@ -294,7 +277,7 @@ function Monitoring() {
           Teacher
         </button>
 
-        <span className="param-value">47</span>
+        <span className="param-value">1</span>
       </div>
 
       {/* Storage */}
@@ -302,24 +285,18 @@ function Monitoring() {
       <div className="divider" />
 
       <div className="table-row no-border">
-        <span className="param-name section-title">
-          Storage
-        </span>
+        <span className="param-name section-title">Storage</span>
       </div>
 
       <div className="table-row no-border progress-row">
         <div className="progress-container">
           <div
             className="progress-bar"
-            style={{
-              width: `${Math.min(diskPercent, 100)}%`,
-            }}
+            style={{ width: `${Math.min(diskPercent, 100)}%` }}
           />
         </div>
 
-        <span className="param-value">
-          {diskPercent.toFixed(0)}%
-        </span>
+        <span className="param-value">{diskPercent.toFixed(0)}%</span>
       </div>
 
       <div className="table-row">
@@ -328,10 +305,7 @@ function Monitoring() {
         </span>
 
         <span className="param-value text-muted">
-          Free: {Math.max(
-            diskTotal - disk,
-            0
-          ).toFixed(1)} GB
+          Free: {Math.max(diskTotal - disk, 0).toFixed(1)} GB
         </span>
       </div>
 
@@ -347,9 +321,7 @@ function Monitoring() {
           Errors
         </button>
 
-        <span className="param-value error-value">
-          12
-        </span>
+        <span className="param-value error-value">12</span>
       </div>
     </>
   )

@@ -1,23 +1,27 @@
 package main
 
 import (
-	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	"server/config"
 	"server/internal/auth"
 	control "server/internal/control"
 	db "server/internal/db"
+	directory "server/internal/directory"
+
 	identity "server/internal/identity"
 	metrics "server/internal/metrics"
 	presence "server/internal/presence"
@@ -83,11 +87,40 @@ func ConnectToDB(path string) (*sql.DB, error) {
 	return db, nil
 }
 func main() {
-	var listenAddr string
-	var port string
-	flag.StringVar(&listenAddr, "listen", "/ip4/0.0.0.0/tcp/9000", "libp2p listen multiaddr")
-	flag.StringVar(&port, "port", "8080", "for host frontend api")
+	var listenAddr, port, configPath string
+	flag.StringVar(&configPath, "config", "", "path to config.json (default: user config dir)")
+	flag.StringVar(&listenAddr, "listen", "", "override libp2p listen multiaddr")
+	flag.StringVar(&port, "port", "", "override HTTP API port")
 	flag.Parse()
+	if configPath == "" {
+		p, err := config.Path()
+		if err != nil {
+			slog.Error("can't resolve config path", "error", err)
+			return
+		}
+		configPath = p
+	}
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			slog.Error("server is not configured: complete first-run setup in the admin app", "config", configPath)
+		} else {
+			slog.Error("failed to load config", "error", err)
+		}
+		return
+	}
+	if listenAddr == "" {
+		listenAddr = fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", cfg.P2PPort)
+	}
+	if port == "" {
+		port = strconv.Itoa(cfg.HTTPPort)
+	}
+	if err := os.MkdirAll(cfg.FilesPath, 0o700); err != nil {
+		slog.Error("can't create files dir", "error", err)
+		return
+	}
+	slog.Info("config loaded", "name", cfg.Name, "http", port, "p2p", listenAddr, "files", cfg.FilesPath)
+
 	startedAt := time.Now()
 	path, err := os.Getwd()
 	if err != nil {
@@ -140,12 +173,15 @@ func main() {
 		slog.Error("failed to resolve addrs", "error", err)
 		return
 	}
-	collector := metrics.NewCollector()
+	collector := metrics.NewCollector(time.Duration(cfg.MonitorIntervalSec) * time.Second)
+	store := config.NewStore(configPath, cfg)
 
-	go HostApi("8080", collector, startedAt, database)
+	go HostApi(port, store, host, collector, startedAt, database)
 	for _, a := range addrs {
 		slog.Info("listening", "addr", a)
 	}
+	host.SetStreamHandler(protocol.SyncStreamProtocol, vault.NewHandler(database).HandleStream)
+	host.SetStreamHandler(directory.ProtocolID, directory.NewHandler(database).HandleStream)
 	host.SetStreamHandler(protocol.StreamProtocol, controlhandler.HandleStream)
 	authHandler := auth.NewAuthHandler(database)
 	host.SetStreamHandler(protocol.AuthStreamProtocol, authHandler.HandleStream)
@@ -160,9 +196,20 @@ func main() {
 	_ = database.Close()
 
 }
+
+var allowedOrigins = map[string]bool{
+	"http://localhost:5173":   true, // vite dev
+	"tauri://localhost":       true, // Tauri (macOS/Linux)
+	"http://tauri.localhost":  true, // Tauri (Windows)
+	"https://tauri.localhost": true,
+}
+
 func cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+		if origin := r.Header.Get("Origin"); allowedOrigins[origin] {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
@@ -170,13 +217,11 @@ func cors(next http.Handler) http.Handler {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-
 		next.ServeHTTP(w, r)
 	})
 }
-func HostApi(port string, collector *metrics.Collector, startedAt time.Time, database *sql.DB) {
+func HostApi(port string, store *config.Store, h host.Host, collector *metrics.Collector, startedAt time.Time, database *sql.DB) {
 	mux := http.NewServeMux()
-
 	metrics.RegisterRoutes(mux, collector)
 
 	mux.HandleFunc("/api/uptime", func(w http.ResponseWriter, r *http.Request) {
@@ -188,12 +233,47 @@ func HostApi(port string, collector *metrics.Collector, startedAt time.Time, dat
 			"seconds": uptime.Seconds(),
 		})
 	})
+	mux.HandleFunc("/api/server-info", func(w http.ResponseWriter, r *http.Request) {
+		cfg := store.Get()
+		writeJSON(w, http.StatusOK, map[string]any{
+			"name":       cfg.Name,
+			"files_path": cfg.FilesPath,
+		})
+	})
+	mux.HandleFunc("/api/settings", settingsHandler(store, collector))
+	mux.HandleFunc("/api/client-config", func(w http.ResponseWriter, r *http.Request) {
+		addrs, err := fullAddrs(h)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to resolve addrs")
+			return
+		}
+		name := strings.NewReplacer("\n", " ", "\r", " ").Replace(store.Get().Name)
+		var b strings.Builder
+		b.WriteString("# Syne client config\n")
+		b.WriteString("name=" + name + "\n")
+		b.WriteString("peer_id=" + h.ID().String() + "\n")
+		for _, a := range addrs {
+			// loopback и link-local клиенту не нужны
+			if strings.HasPrefix(a, "/ip4/127.") || strings.HasPrefix(a, "/ip6/::1") || strings.HasPrefix(a, "/ip6/fe80") {
+				continue
+			}
+			b.WriteString("addr=" + a + "\n")
+		}
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, _ = w.Write([]byte(b.String()))
+	})
+	mux.HandleFunc("/api/users/export", func(w http.ResponseWriter, r *http.Request) {
+		exportUsersHandler(w, r, database)
+	})
+	mux.HandleFunc("/api/users/import", func(w http.ResponseWriter, r *http.Request) {
+		importUsersHandler(w, r, database, store)
+	})
 	mux.HandleFunc("/api/users", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			getUsersHandler(w, database)
 		case http.MethodPost:
-			createUserHandler(w, r, database)
+			createUserHandler(w, r, database, store)
 		default:
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		}
@@ -215,6 +295,7 @@ func HostApi(port string, collector *metrics.Collector, startedAt time.Time, dat
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		}
 	})
+
 	handler := cors(mux)
 
 	slog.Info("HTTP API listening", "port", port)
@@ -222,36 +303,6 @@ func HostApi(port string, collector *metrics.Collector, startedAt time.Time, dat
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		slog.Error("HTTP API stopped", "error", err)
 	}
-}
-func createUserHandler(w http.ResponseWriter, r *http.Request, database *sql.DB) {
-	login := r.FormValue("login")
-	fname := r.FormValue("fname")
-	sname := r.FormValue("sname")
-	role := r.FormValue("role")
-	claimed := false //false → аккаунт создан админом, но ещё не забран | true  → пользователь уже активировал аккаунт
-	claimCode, err := identity.GenerateClaimCode()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "error create claimCodeHash")
-		return
-	}
-	claimCodeHash := sha256.Sum256([]byte(claimCode))
-
-	err = db.CreateClaimableUser(database, login, fname, sname, role, claimed, claimCode, claimCodeHash[:])
-	if err != nil {
-		reason := "error create CreateClaimableUser"
-		status := http.StatusInternalServerError
-		if errors.Is(err, db.ErrLoginAlreadyExists) {
-			reason = "login already exists"
-			status = http.StatusBadRequest
-		}
-		writeError(w, status, reason)
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]any{
-		"ok":         true,
-		"claim_code": claimCode,
-	})
 }
 
 func updateUserHandler(w http.ResponseWriter, r *http.Request, database *sql.DB, login string) {
