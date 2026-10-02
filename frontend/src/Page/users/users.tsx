@@ -101,17 +101,17 @@ function Students() {
     loadUsers()
   }, [])
 
-  // Закрываем контекстное меню по клику снаружи или по Escape.
+
+      useEffect(() => {
+    loadUsers()
+    const timer = setInterval(loadUsers, 5000)
+    return () => clearInterval(timer)
+  }, [])
   useEffect(() => {
     if (!contextMenu) {
       return
     }
-    useEffect(() => {
-  loadUsers()
-  const timer = setInterval(loadUsers, 5000)
-  return () => clearInterval(timer)
-}, [])
-    function handleClickOutside(event: MouseEvent) {
+   function handleClickOutside(event: MouseEvent) {
       if (
         contextMenuRef.current &&
         !contextMenuRef.current.contains(event.target as Node)
@@ -134,7 +134,6 @@ function Students() {
       window.removeEventListener('keydown', handleEscape)
     }
   }, [contextMenu])
-
   const filteredStudents = useMemo(() => {
     const query = search.toLowerCase().trim()
 
@@ -148,8 +147,6 @@ function Students() {
 
     return [...filtered].sort((a, b) => {
       switch (sortBy) {
-        case 'status':
-  return statusRank[a.status] - statusRank[b.status]
         case 'name':
           return a.name.localeCompare(b.name, 'ru')
 

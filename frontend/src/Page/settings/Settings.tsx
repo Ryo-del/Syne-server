@@ -112,17 +112,36 @@ export default function Settings() {
       }
       return text
     })
+    const pickClientAddr = (raw: string): string | null => {
+    const addrs = raw
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.startsWith('addr='))
+      .map((l) => l.slice('addr='.length).trim())
+      .filter((a) => a && !a.startsWith('/ip4/127.'))
 
+    const rank = (a: string) => {
+      if (/^\/ip4\/192\.168\./.test(a)) return 0
+      if (/^\/ip4\/10\./.test(a)) return 1
+      if (/^\/ip4\/172\.(1[6-9]|2\d|3[01])\./.test(a)) return 2
+      return 3
+    }
+
+    return [...addrs].sort((a, b) => rank(a) - rank(b))[0] ?? null
+  }
   const createClientConfig = () =>
     run(async () => {
-      const text = await (await api('/api/client-config')).text()
+      const raw = await (await api('/api/client-config')).text()
+      const addr = pickClientAddr(raw)
+      if (!addr) throw new Error('Сервер не вернул ни одного адреса')
+
       const path = await save({
         defaultPath: 'client-config.txt',
         filters: [{ name: 'Text', extensions: ['txt'] }],
       })
       if (!path) return
-      await invoke('write_text_file', { path, content: text })
-      return 'client-config.txt создан'
+      await invoke('write_text_file', { path, content: addr + '\n' })
+      return `client-config.txt создан (${addr})`
     })
 
   if (!form) return <div className="settings">{msg ? <div className="msg err">{msg.text}</div> : null}</div>

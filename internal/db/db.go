@@ -39,6 +39,26 @@ var ErrAlreadyClaimed = errors.New("account already claimed")
 var ErrInvalidClaimCode = errors.New("invalid claim code")
 var ErrUserNotFound = errors.New("user not found")
 
+type execer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
+// purgeUserData стирает всё, что было зашифровано СТАРЫМИ ключами пользователя.
+// Вызывать при каждой выдаче нового мастер-ключа или ключа идентичности.
+func purgeUserData(e execer, userID int64, login string) error {
+	if _, err := e.Exec(`DELETE FROM vaults WHERE login = ?`, login); err != nil {
+		return err
+	}
+	if _, err := e.Exec(`DELETE FROM mailbox WHERE to_login = ? OR from_login = ?`, login, login); err != nil {
+		return err
+	}
+	if userID != 0 {
+		if _, err := e.Exec(`DELETE FROM sessions WHERE user_id = ?`, userID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 func HexEncodeRandomBytes(n int) (string, error) {
 	b := make([]byte, n)
 	if _, err := rand.Read(b); err != nil {
@@ -76,7 +96,9 @@ func CreateUser(
 
 		return err
 	}
-
+	if err := purgeUserData(db, 0, login); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -127,7 +149,9 @@ func CreateClaimableUser(
 
 		return err
 	}
-
+	if err := purgeUserData(db, 0, login); err != nil {
+		return err
+	}
 	return nil
 }
 func GetUserByLogin(db *sql.DB, login string) (*User, error) {
@@ -201,7 +225,13 @@ func ClaimUser(
 		return ErrInvalidClaimCode
 	}
 
-	_, err = dbConn.Exec(`
+	tx, err := dbConn.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() // после Commit безвреден
+
+	res, err := tx.Exec(`
 		UPDATE users
 		SET password_hash = ?,
 		    password_salt = ?,
@@ -216,7 +246,21 @@ func ClaimUser(
 		encryptedMasterKey, identityPublicKey, encryptedIdentityKey,
 		login,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrAlreadyClaimed
+	}
+
+	if err := purgeUserData(tx, user.ID, login); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // UpdateUser меняет имя, фамилию и роль пользователя. Login (первичный

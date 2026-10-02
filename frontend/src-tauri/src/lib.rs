@@ -3,6 +3,16 @@ use std::net::TcpListener;
 use std::{fs, path::PathBuf};
 use tauri_plugin_autostart::MacosLauncher;
 
+fn d_interval() -> u32 {
+    1
+}
+fn d_id_digits() -> u8 {
+    8
+}
+fn d_claim_len() -> u8 {
+    8
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 struct ServerConfig {
     name: String,
@@ -10,6 +20,12 @@ struct ServerConfig {
     p2p_port: u16,
     files_path: String,
     autostart: bool,
+    #[serde(default = "d_interval")]
+    monitor_interval_sec: u32,
+    #[serde(default = "d_id_digits")]
+    id_digits: u8,
+    #[serde(default = "d_claim_len")]
+    claim_code_length: u8,
 }
 
 fn config_path() -> PathBuf {
@@ -20,14 +36,14 @@ fn config_path() -> PathBuf {
     p
 }
 
+fn port_free(p: u16) -> bool {
+    TcpListener::bind(("0.0.0.0", p)).is_ok()
+}
+
 /// Есть ли уже конфиг (т.е. первый запуск уже был)
 #[tauri::command]
 fn is_configured() -> bool {
     config_path().exists()
-}
-
-fn port_free(p: u16) -> bool {
-    TcpListener::bind(("0.0.0.0", p)).is_ok()
 }
 
 #[tauri::command]
@@ -59,6 +75,17 @@ fn save_config(config: ServerConfig) -> Result<(), String> {
     Ok(())
 }
 
+// пути приходят только из системных диалогов выбора файла
+#[tauri::command]
+fn write_text_file(path: String, content: String) -> Result<(), String> {
+    fs::write(path, content).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn read_text_file(path: String) -> Result<String, String> {
+    fs::read_to_string(path).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -70,7 +97,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             is_configured,
             load_config,
-            save_config
+            save_config,
+            write_text_file,
+            read_text_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
