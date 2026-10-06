@@ -18,6 +18,13 @@ type Config struct {
 	MonitorIntervalSec int `json:"monitor_interval_sec"`
 	IDDigits           int `json:"id_digits"`
 	ClaimCodeLength    int `json:"claim_code_length"`
+
+	// Квота файлового менеджера: на одного ученика приходится
+	// AllMemoryGB / CountUsers гигабайт (по умолчанию 500 / 50 = 10).
+	// CountUsers — плановое число пользователей, а не число записей в БД.
+	// У преподавателей лимита нет.
+	AllMemoryGB int `json:"all_memory_gb"`
+	CountUsers  int `json:"count_users"`
 }
 
 func (c *Config) applyDefaults() {
@@ -29,6 +36,12 @@ func (c *Config) applyDefaults() {
 	}
 	if c.ClaimCodeLength == 0 {
 		c.ClaimCodeLength = 8
+	}
+	if c.AllMemoryGB == 0 {
+		c.AllMemoryGB = 500
+	}
+	if c.CountUsers == 0 {
+		c.CountUsers = 50
 	}
 }
 
@@ -46,6 +59,10 @@ func (c *Config) Validate() error {
 		return errors.New("id digits must be 4..12")
 	case c.ClaimCodeLength < 6 || c.ClaimCodeLength > 32:
 		return errors.New("claim code length must be 6..32")
+	case c.AllMemoryGB < 1 || c.AllMemoryGB > 10_000_000:
+		return errors.New("all memory must be 1..10000000 GB")
+	case c.CountUsers < 1 || c.CountUsers > 100_000:
+		return errors.New("user count must be 1..100000")
 	}
 	return nil
 }

@@ -11,16 +11,16 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strconv"
-	"strings"
-	"syscall"
-	"time"
-
 	"server/config"
 	"server/internal/auth"
 	control "server/internal/control"
 	db "server/internal/db"
 	directory "server/internal/directory"
+	"server/internal/files"
+	"strconv"
+	"strings"
+	"syscall"
+	"time"
 
 	identity "server/internal/identity"
 	metrics "server/internal/metrics"
@@ -80,7 +80,7 @@ func ConnectToDB(path string) (*sql.DB, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, err
 	}
-	db, err := sql.Open("sqlite", path)
+	db, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		return nil, err
 	}
@@ -167,6 +167,10 @@ func main() {
 		slog.Error("failed to init schema", "error", err)
 		return
 	}
+	if err := files.InitSchema(database); err != nil {
+		slog.Error("failed to init files schema", "error", err)
+		return
+	}
 	controlhandler := control.NewControlHandler(host)
 	addrs, err := fullAddrs(host)
 	if err != nil {
@@ -175,8 +179,21 @@ func main() {
 	}
 	collector := metrics.NewCollector(time.Duration(cfg.MonitorIntervalSec) * time.Second)
 	store := config.NewStore(configPath, cfg)
-
-	go HostApi(port, store, host, collector, startedAt, database)
+	filesSvc, err := files.NewService(database, cfg.FilesPath, func() int64 {
+		c := store.Get()
+		q, err := files.QuotaPerUser(c.AllMemoryGB, c.CountUsers)
+		if err != nil {
+			return 0 // неверные настройки: запись закрыта, а не открыта без лимита
+		}
+		return q
+	})
+	if err != nil {
+		slog.Error("failed to init files service", "error", err)
+		return
+	}
+	go filesSvc.SweepTemps()
+	host.SetStreamHandler(protocol.FilesStreamProtocol, files.NewHandler(database, filesSvc).HandleStream)
+	go HostApi(port, store, host, collector, startedAt, database, filesSvc)
 	for _, a := range addrs {
 		slog.Info("listening", "addr", a)
 	}
@@ -220,7 +237,7 @@ func cors(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
-func HostApi(port string, store *config.Store, h host.Host, collector *metrics.Collector, startedAt time.Time, database *sql.DB) {
+func HostApi(port string, store *config.Store, h host.Host, collector *metrics.Collector, startedAt time.Time, database *sql.DB, filesSvc *files.Service) {
 	mux := http.NewServeMux()
 	metrics.RegisterRoutes(mux, collector)
 
@@ -274,6 +291,7 @@ func HostApi(port string, store *config.Store, h host.Host, collector *metrics.C
 			getUsersHandler(w, database)
 		case http.MethodPost:
 			createUserHandler(w, r, database, store)
+
 		default:
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		}
@@ -290,7 +308,7 @@ func HostApi(port string, store *config.Store, h host.Host, collector *metrics.C
 		case http.MethodPatch:
 			updateUserHandler(w, r, database, login)
 		case http.MethodDelete:
-			deleteUserHandler(w, database, login)
+			deleteUserHandler(w, database, filesSvc, login)
 		default:
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		}
@@ -342,7 +360,7 @@ func updateUserHandler(w http.ResponseWriter, r *http.Request, database *sql.DB,
 	writeJSON(w, http.StatusOK, toPublicUser(*user))
 }
 
-func deleteUserHandler(w http.ResponseWriter, database *sql.DB, login string) {
+func deleteUserHandler(w http.ResponseWriter, database *sql.DB, filesSvc *files.Service, login string) {
 	if err := db.DeleteUser(database, login); err != nil {
 		status := http.StatusInternalServerError
 		reason := "failed to delete user"
@@ -353,9 +371,11 @@ func deleteUserHandler(w http.ResponseWriter, database *sql.DB, login string) {
 		writeError(w, status, reason)
 		return
 	}
+	if err := filesSvc.PurgeUser(login); err != nil {
+		slog.Error("failed to purge user files", "login", login, "error", err)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
-
 func getUsersHandler(w http.ResponseWriter, database *sql.DB) {
 	users, err := db.GetAllUser(database)
 	if err != nil {
