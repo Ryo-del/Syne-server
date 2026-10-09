@@ -1,0 +1,81 @@
+name: windows-build
+
+on:
+  workflow_dispatch:
+
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/windows-build.yml"
+      - "cmd/**"
+      - "config/**"
+      - "internal/**"
+      - "frontend/**"
+      - "go.mod"
+      - "go.sum"
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            frontend/src-tauri -> target
+
+      - name: Check Go formatting
+        shell: bash
+        run: |
+          files=$(gofmt -l $(find cmd config internal -name '*.go'))
+          if [ -n "$files" ]; then
+            echo "Go files need formatting:"
+            echo "$files"
+            exit 1
+          fi
+
+      - name: Test Go
+        run: go test ./...
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build Tauri Windows bundle
+        working-directory: frontend
+        env:
+          SIDECAR_TARGET_TRIPLE: x86_64-pc-windows-msvc
+        run: npm run tauri:build -- --target x86_64-pc-windows-msvc
+
+      - name: Upload Windows bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: syne-server-windows
+          path: |
+            frontend/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*.msi
+            frontend/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*.exe
+          if-no-files-found: error
+          retention-days: 14
