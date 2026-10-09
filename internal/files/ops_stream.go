@@ -145,6 +145,9 @@ func (s *Service) BeginUpload(actor Actor, req protocol.FilesRequest) (*Upload, 
 	if err != nil {
 		return nil, err
 	}
+	if IsJunkName(name) {
+		return nil, nil // служебный файл: принимать нечего
+	}
 	if req.Size < 0 || req.Size > MaxFileBytes {
 		return nil, invalid("file is too large (max 2 GiB)")
 	}

@@ -176,6 +176,9 @@ func (s *Service) searchOwner(st *searchState, actor Actor, owner User) error {
 			if strings.HasPrefix(name, TempPrefix) {
 				continue
 			}
+			if IsJunkName(name) {
+				continue
+			}
 			if c, err := CleanName(name); err != nil || c != name {
 				continue
 			}

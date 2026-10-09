@@ -10,6 +10,7 @@ export default function SetupWindow({ onDone }: Props) {
   const [name, setName] = useState("");
   const [httpPort, setHttpPort] = useState("8080");
   const [p2pPort, setP2pPort] = useState("4001");
+  
   const [filesPath, setFilesPath] = useState("");
   const [autostart, setAutostart] = useState(true);
   const [error, setError] = useState("");

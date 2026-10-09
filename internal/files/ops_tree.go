@@ -94,6 +94,9 @@ func (s *Service) doList(actor Actor, req protocol.FilesRequest) (protocol.Files
 		if strings.HasPrefix(name, TempPrefix) {
 			continue
 		}
+		if IsJunkName(name) {
+			continue
+		}
 		// Имена, созданные в обход API (недопустимые символы, не NFC), адресовать нельзя.
 		if c, err := CleanName(name); err != nil || c != name {
 			continue
@@ -572,6 +575,7 @@ func trimToBytes(s string, n int) string {
 	}
 	return s
 }
+
 // Package files — ядро файлового менеджера: безопасные пути, права (ACL),
 // квоты. Файлы лежат на диске как обычные папки:
 //
