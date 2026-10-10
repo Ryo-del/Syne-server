@@ -3,7 +3,7 @@ module server
 go 1.26.5
 
 require (
-	github.com/Ryo-del/Syne-protocol v0.0.2-0.20260923083058-a8c66588c87d
+	github.com/Ryo-del/Syne-protocol v0.0.2-0.20261008160456-d4b4ff5cb446
 	github.com/libp2p/go-libp2p v0.48.0
 	github.com/shirou/gopsutil/v4 v4.26.8
 	golang.org/x/text v0.41.0
@@ -111,5 +111,3 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 )
-
-replace github.com/Ryo-del/Syne-protocol => ../Syne-protocol
