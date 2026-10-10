@@ -31,10 +31,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
@@ -56,7 +56,7 @@ jobs:
           "$hash  syne-server.exe" | Set-Content -Encoding ascii dist/syne-server.exe.sha256
 
       - name: Upload server binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: syne-server-windows
           path: dist/*
@@ -70,17 +70,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
@@ -94,6 +94,17 @@ jobs:
         with:
           workspaces: |
             frontend/src-tauri -> target
+
+      # tauri build отказывается работать с идентификатором из шаблона.
+      # Проверяем заранее, чтобы причина была видна сразу, а не в хвосте лога сборки.
+      - name: Check bundle identifier
+        shell: pwsh
+        run: |
+          $conf = Get-Content "frontend/src-tauri/tauri.conf.json" -Raw | ConvertFrom-Json
+          if ($conf.identifier -eq "com.tauri.dev") {
+            Write-Error "tauri.conf.json: change identifier from the default 'com.tauri.dev' (for example to 'com.syne.server')"
+            exit 1
+          }
 
       - name: Install frontend dependencies
         working-directory: frontend
@@ -126,7 +137,7 @@ jobs:
         run: npx tauri build --target x86_64-pc-windows-msvc
 
       - name: Upload Windows bundles
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: syne-server-desktop-windows
           path: |
@@ -144,12 +155,15 @@ jobs:
 
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           path: artifacts
 
       - name: Publish release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: artifacts/**/*
-          generate_release_notes: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mapfile -t files < <(find artifacts -type f)
+          gh release create "$GITHUB_REF_NAME" "${files[@]}" --generate-notes --verify-tag
