@@ -35,12 +35,6 @@ type ContextMenuState = {
   x: number
   y: number
 }
-const statusRank: Record<StudentStatus, number> = {
-  online: 0,
-  authorized: 1,
-  offline: 2,
-  pending: 3,
-}
 type ModalState =
   | { mode: 'create' }
   | { mode: 'edit'; student: Student }
