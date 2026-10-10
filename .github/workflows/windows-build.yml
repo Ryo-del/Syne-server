@@ -50,12 +50,20 @@ jobs:
       - name: Check Go formatting
         shell: bash
         run: |
-          files=$(gofmt -l $(find cmd config internal -name '*.go'))
+          set -euo pipefail
+
+          echo "Checking commit:"
+          git rev-parse HEAD
+
+          files=$(git ls-files -- '*.go' | xargs gofmt -l)
+
           if [ -n "$files" ]; then
             echo "Go files need formatting:"
-            echo "$files"
+            printf '%s\n' "$files"
             exit 1
           fi
+
+          echo "All Go files are formatted."
 
       - name: Test Go
         run: go test ./...
