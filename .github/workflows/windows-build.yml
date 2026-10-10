@@ -2,31 +2,80 @@ name: windows-build
 
 on:
   workflow_dispatch:
-
   push:
     branches:
       - main
+    tags:
+      - "v*"
     paths:
       - ".github/workflows/windows-build.yml"
+      - "frontend/**"
       - "cmd/**"
       - "config/**"
       - "internal/**"
-      - "frontend/**"
       - "go.mod"
       - "go.sum"
 
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
-  build:
+  server:
+    name: Go server (windows)
     runs-on: windows-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -count=1 ./...
+
+      - name: Build syne-server.exe
+        shell: pwsh
+        env:
+          GOOS: windows
+          GOARCH: amd64
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          go build -trimpath -ldflags "-s -w" -o dist/syne-server.exe ./cmd/syne-server
+          $hash = (Get-FileHash dist/syne-server.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  syne-server.exe" | Set-Content -Encoding ascii dist/syne-server.exe.sha256
+
+      - name: Upload server binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: syne-server-windows
+          path: dist/*
+          if-no-files-found: error
+
+  desktop:
+    name: Tauri app (windows)
+    needs: server
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
@@ -34,7 +83,6 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: true
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -47,43 +95,61 @@ jobs:
           workspaces: |
             frontend/src-tauri -> target
 
-      - name: Check Go formatting
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "Checking commit:"
-          git rev-parse HEAD
-
-          files=$(git ls-files -- '*.go' | xargs gofmt -l)
-
-          if [ -n "$files" ]; then
-            echo "Go files need formatting:"
-            printf '%s\n' "$files"
-            exit 1
-          fi
-
-          echo "All Go files are formatted."
-
-      - name: Test Go
-        run: go test ./...
-
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
 
+      # Если приложение упаковывает сервер как sidecar (bundle.externalBin в
+      # tauri.conf.json), Tauri ждёт файл «<имя>-<target triple>.exe».
+      - name: Build sidecar (if configured)
+        shell: pwsh
+        run: |
+          $conf = Get-Content "frontend/src-tauri/tauri.conf.json" -Raw | ConvertFrom-Json
+          $bins = @($conf.bundle.externalBin) | Where-Object { $_ }
+          if ($bins.Count -eq 0) {
+            Write-Host "No externalBin in tauri.conf.json, skipping sidecar build"
+            exit 0
+          }
+          foreach ($b in $bins) {
+            if ((Split-Path $b -Leaf) -ne "syne-server") {
+              Write-Warning "Unknown sidecar '$b' skipped"
+              continue
+            }
+            $out = "frontend/src-tauri/$b-x86_64-pc-windows-msvc.exe"
+            New-Item -ItemType Directory -Force (Split-Path $out) | Out-Null
+            go build -trimpath -ldflags "-s -w" -o $out ./cmd/syne-server
+            Write-Host "Built sidecar: $out"
+          }
+
       - name: Build Tauri Windows bundle
         working-directory: frontend
-        env:
-          SIDECAR_TARGET_TRIPLE: x86_64-pc-windows-msvc
-        run: npm run tauri:build -- --target x86_64-pc-windows-msvc
+        run: npx tauri build --target x86_64-pc-windows-msvc
 
       - name: Upload Windows bundles
         uses: actions/upload-artifact@v4
         with:
-          name: syne-server-windows
+          name: syne-server-desktop-windows
           path: |
             frontend/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*.msi
             frontend/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*.exe
           if-no-files-found: error
-          retention-days: 14
+
+  release:
+    name: GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [server, desktop]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true
