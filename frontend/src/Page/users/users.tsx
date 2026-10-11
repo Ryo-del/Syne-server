@@ -2,6 +2,7 @@
 import './users.css'
 import AddUserModal from './AddUserModal'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { listGroups, type Group } from '../groups/groupsApi'
 type StudentStatus = 'online' | 'offline' | 'authorized' | 'pending'
 type ApiUser = {
   ID: number
@@ -94,7 +95,11 @@ function Students() {
   useEffect(() => {
     loadUsers()
   }, [])
+    const [groups, setGroups] = useState<Group[]>([])
 
+  useEffect(() => {
+    listGroups().then(setGroups).catch(() => setGroups([]))
+  }, [modalState])
 
       useEffect(() => {
     loadUsers()
@@ -164,6 +169,7 @@ function Students() {
     role: 'Ученик' | 'Учитель'
     name: string
     surname: string
+    groupId: string
   }) => {
     try {
       const body = new URLSearchParams()
@@ -171,7 +177,7 @@ function Students() {
       body.append('login', user.id)
       body.append('fname', user.name)
       body.append('sname', user.surname)
-
+      if (user.groupId) body.append('group_id', user.groupId)
       body.append(
         'role',
         user.role === 'Учитель'
@@ -216,11 +222,12 @@ function Students() {
     }
   }
 
-  const handleEditUser = async (user: {
+    const handleEditUser = async (user: {
     id: string
     role: 'Ученик' | 'Учитель'
     name: string
     surname: string
+    groupId: string
   }) => {
     try {
       const response = await fetch(
@@ -353,9 +360,10 @@ function Students() {
         </div>
       </div>
 
-      {modalState?.mode === 'create' && (
+            {modalState?.mode === 'create' && (
         <AddUserModal
           mode="create"
+          groups={groups}
           onClose={() => setModalState(null)}
           onSubmit={handleAddUser}
         />
@@ -369,6 +377,7 @@ function Students() {
             role: modalState.student.role,
             name: modalState.student.fname,
             surname: modalState.student.sname,
+            groupId: '',
           }}
           onClose={() => setModalState(null)}
           onSubmit={handleEditUser}

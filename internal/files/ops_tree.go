@@ -16,53 +16,55 @@ import (
 func invalid(msg string) *Error { return newErr(protocol.FilesErrInvalidRequest, msg) }
 
 // ---------- list / stat ----------
-
-// listOwners — папки других пользователей («Сервер»). Преподаватель видит всех,
-// остальные только тех, у кого для них что-то открыто.
-func (s *Service) listOwners(actor Actor) (protocol.FilesResponse, error) {
-	users, err := s.st.AllUsers()
+// ownerCandidates: для не-преподавателя — владельцы, у которых хоть что-то открыто (nil — без ограничений).
+func (s *Service) ownerCandidates(actor Actor) (map[string]bool, error) {
+	if actor.IsTeacher() {
+		return nil, nil
+	}
+	logins, err := s.st.OwnersWithVisibleRules()
 	if err != nil {
-		return protocol.FilesResponse{}, err
+		return nil, err
 	}
-	var candidates map[string]bool
-	if !actor.IsTeacher() {
-		logins, err := s.st.OwnersWithVisibleRules()
-		if err != nil {
-			return protocol.FilesResponse{}, err
-		}
-		candidates = make(map[string]bool, len(logins))
-		for _, l := range logins {
-			candidates[l] = true
-		}
+	m := make(map[string]bool, len(logins))
+	for _, l := range logins {
+		m[l] = true
 	}
+	return m, nil
+}
 
-	var out []protocol.FileEntry
-	for _, u := range users {
-		if u.Login == actor.Login {
-			continue
-		}
-		if candidates != nil && !candidates[u.Login] {
-			continue
-		}
-		eng, err := s.engineFor(u.Login)
-		if err != nil {
-			return protocol.FilesResponse{}, err
-		}
-		if !actor.IsTeacher() {
-			vis, err := eng.Visible(actor, u.Login, "", true)
-			if err != nil {
-				return protocol.FilesResponse{}, err
-			}
-			if !vis {
-				continue
-			}
-		}
-		e, err := s.rootEntry(eng, actor, u)
-		if err != nil {
-			return protocol.FilesResponse{}, err
-		}
-		out = append(out, e)
+// visibleOwnerEntry: запись корня чужой папки, если актёр её видит; иначе nil.
+func (s *Service) visibleOwnerEntry(actor Actor, u User, candidates map[string]bool) (*protocol.FileEntry, error) {
+	if u.Login == actor.Login {
+		return nil, nil
 	}
+	if candidates != nil && !candidates[u.Login] {
+		return nil, nil
+	}
+	eng, err := s.engineFor(u.Login)
+	if err != nil {
+		return nil, err
+	}
+	if !actor.IsTeacher() {
+		vis, err := eng.Visible(actor, u.Login, "", true)
+		if err != nil {
+			return nil, err
+		}
+		if !vis {
+			return nil, nil
+		}
+	}
+	e, err := s.rootEntry(eng, actor, u)
+	if err != nil {
+		return nil, err
+	}
+	return &e, nil
+}
+
+func groupEntry(name, emoji string) protocol.FileEntry {
+	return protocol.FileEntry{Name: name, IsDir: true, IsGroup: true, Group: name, GroupEmoji: emoji}
+}
+
+func sortOwnerEntries(out []protocol.FileEntry) {
 	sort.Slice(out, func(i, j int) bool {
 		a, b := strings.ToLower(out[i].Name), strings.ToLower(out[j].Name)
 		if a != b {
@@ -70,74 +72,92 @@ func (s *Service) listOwners(actor Actor) (protocol.FilesResponse, error) {
 		}
 		return out[i].Owner < out[j].Owner
 	})
-	return protocol.FilesResponse{Entries: out}, nil
 }
 
-func (s *Service) doList(actor Actor, req protocol.FilesRequest) (protocol.FilesResponse, error) {
-	t, err := s.open(actor, req.Owner, req.Path)
+// listOwners — верхний уровень «Сервера»: папки групп (IsGroup) и папки учеников без группы.
+// Группа видна, если в ней есть хоть одна доступная вам папка; преподаватель видит все группы.
+func (s *Service) listOwners(actor Actor) (protocol.FilesResponse, error) {
+	users, err := s.st.AllUsers()
 	if err != nil {
 		return protocol.FilesResponse{}, err
 	}
-	if !t.info.IsDir() {
-		return protocol.FilesResponse{}, invalid("not a folder")
-	}
-	des, err := os.ReadDir(t.abs)
+	candidates, err := s.ownerCandidates(actor)
 	if err != nil {
 		return protocol.FilesResponse{}, err
 	}
-	priv := canManage(actor, t.owner.Login)
 
-	var out []protocol.FileEntry
-	truncated := false
-	for _, de := range des {
-		name := de.Name()
-		if strings.HasPrefix(name, TempPrefix) {
-			continue
-		}
-		if IsJunkName(name) {
-			continue
-		}
-		// Имена, созданные в обход API (недопустимые символы, не NFC), адресовать нельзя.
-		if c, err := CleanName(name); err != nil || c != name {
-			continue
-		}
-		info, err := de.Info()
-		if err != nil || !okKind(info) {
-			continue
-		}
-		rel := Join(t.rel, name)
-		if !priv {
-			vis, err := t.eng.Visible(actor, t.owner.Login, rel, info.IsDir())
-			if err != nil {
-				return protocol.FilesResponse{}, err
-			}
-			if !vis {
-				continue
-			}
-		}
-		if len(out) >= maxListEntries {
-			truncated = true
-			break
-		}
-		e, err := s.entryFor(t.eng, actor, t.owner, rel, info)
+	groups := map[string]protocol.FileEntry{}
+	if actor.IsTeacher() {
+		all, err := s.st.AllGroups()
 		if err != nil {
 			return protocol.FilesResponse{}, err
 		}
-		out = append(out, e)
+		for _, g := range all {
+			groups[Fold(g.Name)] = groupEntry(g.Name, g.Emoji)
+		}
 	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].IsDir != out[j].IsDir {
-			return out[i].IsDir
+
+	var out []protocol.FileEntry
+	for _, u := range users {
+		e, err := s.visibleOwnerEntry(actor, u, candidates)
+		if err != nil {
+			return protocol.FilesResponse{}, err
 		}
-		a, b := strings.ToLower(out[i].Name), strings.ToLower(out[j].Name)
-		if a != b {
-			return a < b
+		if e == nil {
+			continue
 		}
-		return out[i].Name < out[j].Name
-	})
-	return protocol.FilesResponse{Entries: out, Truncated: truncated}, nil
+		if u.Group == "" {
+			out = append(out, *e)
+			continue
+		}
+		if key := Fold(u.Group); groups[key].Name == "" {
+			groups[key] = groupEntry(u.Group, u.GroupEmoji)
+		}
+	}
+	for _, g := range groups {
+		out = append(out, g)
+	}
+	sortOwnerEntries(out)
+	return protocol.FilesResponse{Entries: out}, nil
 }
 
+// doListGroup — папки учеников внутри группы: /Группа/Фамилия Имя
+func (s *Service) doListGroup(actor Actor, req protocol.FilesRequest) (protocol.FilesResponse, error) {
+	name, err := CleanName(req.Group)
+	if err != nil {
+		return protocol.FilesResponse{}, err
+	}
+	g, ok, err := s.st.GroupByName(name)
+	if err != nil {
+		return protocol.FilesResponse{}, err
+	}
+	if !ok {
+		return protocol.FilesResponse{}, notFound()
+	}
+	users, err := s.st.AllUsers()
+	if err != nil {
+		return protocol.FilesResponse{}, err
+	}
+	candidates, err := s.ownerCandidates(actor)
+	if err != nil {
+		return protocol.FilesResponse{}, err
+	}
+	var out []protocol.FileEntry
+	for _, u := range users {
+		if u.Group == "" || Fold(u.Group) != Fold(g.Name) {
+			continue
+		}
+		e, err := s.visibleOwnerEntry(actor, u, candidates)
+		if err != nil {
+			return protocol.FilesResponse{}, err
+		}
+		if e != nil {
+			out = append(out, *e)
+		}
+	}
+	sortOwnerEntries(out)
+	return protocol.FilesResponse{Entries: out}, nil
+}
 func (s *Service) doStat(actor Actor, req protocol.FilesRequest) (protocol.FilesResponse, error) {
 	t, err := s.open(actor, req.Owner, req.Path)
 	if err != nil {

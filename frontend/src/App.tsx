@@ -12,6 +12,7 @@ import Study from './Page/MetricWindows/Study/Study'
 import Teacher from './Page/MetricWindows/Teacher/Teacher'
 import Errors from './Page/MetricWindows/Errors/Errors'
 import User from './Page/users/users'
+import Groups from './Page/groups/Groups'
 import SetupWindow from './Page/Setup/SetupWindow'
 
 function App() {
@@ -77,7 +78,13 @@ function App() {
             <span>🎓</span>
             Ученики
           </button>
-
+                    <button
+            className={`nav-item ${activePage === 'groups' ? 'active' : ''}`}
+            onClick={() => setActivePage('groups')}
+          >
+            <span>👥</span>
+            Группы
+          </button>
           <button className="nav-item">
             <span>📁</span>
             Файлы
@@ -112,7 +119,7 @@ function App() {
         {activePage === 'monitoring' && <Monitoring />}
         {activePage === 'users' && <User />}
         {activePage === 'settings' && <Settings />}
-        
+                {activePage === 'groups' && <Groups />}
       </main>
     </div>
   )

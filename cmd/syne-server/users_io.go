@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -52,6 +53,20 @@ func createClaimable(database *sql.DB, store *config.Store, login, fname, sname,
 }
 
 func createUserHandler(w http.ResponseWriter, r *http.Request, database *sql.DB, store *config.Store) {
+	var groupID int64
+	if raw := strings.TrimSpace(r.FormValue("group_id")); raw != "" {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || id <= 0 {
+			writeError(w, http.StatusBadRequest, "invalid group_id")
+			return
+		}
+		if _, err := db.GetGroup(database, id); err != nil {
+			writeError(w, http.StatusBadRequest, "группа не найдена")
+			return
+		}
+		groupID = id
+	}
+
 	login, code, err := createClaimable(database, store,
 		r.FormValue("login"), r.FormValue("fname"), r.FormValue("sname"), r.FormValue("role"))
 	if err != nil {
@@ -61,6 +76,11 @@ func createUserHandler(w http.ResponseWriter, r *http.Request, database *sql.DB,
 		}
 		writeError(w, status, reason)
 		return
+	}
+	if groupID != 0 { // преподаватели в группы не добавляются: AddUsersToGroup их пропустит
+		if _, _, err := db.AddUsersToGroup(database, groupID, []string{login}); err != nil {
+			slog.Error("failed to add new user to group", "login", login, "error", err)
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "login": login, "claim_code": code})
 }
@@ -82,9 +102,8 @@ func exportUsersHandler(w http.ResponseWriter, _ *http.Request, database *sql.DB
 	cw.Flush()
 }
 
-// Импорт: колонки login;fname;sname;role. login можно оставить пустым —
-// сгенерируется. Заголовок (первая ячейка "login") необязателен.
-// Разделитель ',' или ';' определяется автоматически.
+// Импорт: колонки login;fname;sname;role;group. login и group можно оставить пустыми.
+// Заголовок (первая ячейка "login") необязателен. Группа должна уже существовать.
 func importUsersHandler(w http.ResponseWriter, r *http.Request, database *sql.DB, store *config.Store) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -131,13 +150,26 @@ func importUsersHandler(w http.ResponseWriter, r *http.Request, database *sql.DB
 			failed = append(failed, rowErr{i + 1, "fname и sname обязательны"})
 			continue
 		}
-		if _, _, err := createClaimable(database, store, get(0), get(1), get(2), get(3)); err != nil {
+		var groupID int64
+		if name := get(4); name != "" {
+			g, err := db.GroupByName(database, name)
+			if err != nil {
+				failed = append(failed, rowErr{i + 1, "группа не найдена"})
+				continue
+			}
+			groupID = g.ID
+		}
+		login, _, err := createClaimable(database, store, get(0), get(1), get(2), get(3))
+		if err != nil {
 			reason := "ошибка создания"
 			if errors.Is(err, db.ErrLoginAlreadyExists) {
 				reason = "логин уже существует"
 			}
 			failed = append(failed, rowErr{i + 1, reason})
 			continue
+		}
+		if groupID != 0 {
+			_, _, _ = db.AddUsersToGroup(database, groupID, []string{login})
 		}
 		created++
 	}

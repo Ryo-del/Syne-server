@@ -433,5 +433,8 @@ func InitSchema(db *sql.DB) error {
 	// Миграция для БД, созданных до появления колонки claim_code.
 	_, _ = db.Exec(`ALTER TABLE users ADD COLUMN claim_code TEXT NOT NULL DEFAULT ''`)
 
-	return initSyncSchema(db)
+	if err := initSyncSchema(db); err != nil {
+		return err
+	}
+	return initGroupsSchema(db)
 }

@@ -61,6 +61,8 @@ type publicUser struct {
 	Claimed   bool   `json:"Claimed"`
 	ClaimCode string `json:"ClaimCode"`
 	CreatedAt int64  `json:"CreatedAt"`
+	GroupID   int64  `json:"GroupID"` // 0 — без группы
+	Group     string `json:"Group"`
 }
 
 func toPublicUser(u db.User) publicUser {
@@ -250,6 +252,8 @@ func HostApi(port string, store *config.Store, h host.Host, collector *metrics.C
 			"seconds": uptime.Seconds(),
 		})
 	})
+	mux.HandleFunc("/api/groups", groupsHandler(database))
+	mux.HandleFunc("/api/groups/", groupRoutes(database))
 	mux.HandleFunc("/api/server-info", func(w http.ResponseWriter, r *http.Request) {
 		cfg := store.Get()
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -382,12 +386,20 @@ func getUsersHandler(w http.ResponseWriter, database *sql.DB) {
 		http.Error(w, "failed to get users", http.StatusInternalServerError)
 		return
 	}
+	groups, err := db.UserGroupMap(database)
+	if err != nil {
+		http.Error(w, "failed to get groups", http.StatusInternalServerError)
+		return
+	}
 
 	out := make([]publicUser, 0, len(users))
 	for _, u := range users {
-		out = append(out, toPublicUser(u))
+		pu := toPublicUser(u)
+		if g, ok := groups[u.Login]; ok {
+			pu.GroupID, pu.Group = g.ID, g.Name
+		}
+		out = append(out, pu)
 	}
-
 	writeJSON(w, http.StatusOK, out)
 }
 func fullAddrs(h host.Host) ([]string, error) {

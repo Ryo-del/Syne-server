@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 
@@ -181,12 +182,14 @@ func (s *Service) require(t *target, actor Actor, a protocol.Action) error {
 func (s *Service) entryFor(eng *Engine, actor Actor, owner User, rel string, info os.FileInfo) (protocol.FileEntry, error) {
 	isDir := info.IsDir()
 	e := protocol.FileEntry{
-		Name:      info.Name(),
-		Path:      rel,
-		IsDir:     isDir,
-		ModTime:   info.ModTime().UnixMilli(),
-		Owner:     owner.Login,
-		OwnerName: owner.DisplayName(),
+		Name:       info.Name(),
+		Path:       rel,
+		IsDir:      isDir,
+		ModTime:    info.ModTime().UnixMilli(),
+		Owner:      owner.Login,
+		OwnerName:  owner.DisplayName(),
+		Group:      owner.Group,
+		GroupEmoji: owner.GroupEmoji,
 	}
 	if rel == "" {
 		e.Name = owner.DisplayName()
@@ -235,10 +238,12 @@ func (s *Service) entryFor(eng *Engine, actor Actor, owner User, rel string, inf
 // rootEntry — корень папки пользователя в списке «Сервер».
 func (s *Service) rootEntry(eng *Engine, actor Actor, owner User) (protocol.FileEntry, error) {
 	e := protocol.FileEntry{
-		Name:      owner.DisplayName(),
-		IsDir:     true,
-		Owner:     owner.Login,
-		OwnerName: owner.DisplayName(),
+		Name:       owner.DisplayName(),
+		IsDir:      true,
+		Owner:      owner.Login,
+		OwnerName:  owner.DisplayName(),
+		Group:      owner.Group,
+		GroupEmoji: owner.GroupEmoji,
 	}
 	can := map[protocol.Action]bool{}
 	for _, a := range protocol.AllActions {
@@ -431,21 +436,91 @@ func (s *Service) gather(actor Actor, eng *Engine, owner string, priv bool, rel,
 
 // ---------- dispatch ----------
 
-// Do выполняет запрос от имени actor. Актёр определяется по сессии (роль из
-// БД), а не из запроса.
 func (s *Service) Do(actor Actor, req protocol.FilesRequest) protocol.FilesResponse {
 	resp, err := s.do(actor, req)
 	if err != nil {
-		return respErr(err)
+		r := respErr(err)
+		if r.Code == protocol.FilesErrInvalidRequest || r.Code == protocol.FilesErrInvalidPath {
+			slog.Warn("files: rejected request",
+				"op", req.Op, "owner", req.Owner, "path", req.Path, "group", req.Group,
+				"code", r.Code, "reason", r.Error)
+		}
+		return r
 	}
 	resp.OK = true
 	return resp
+}
+func (s *Service) doList(actor Actor, req protocol.FilesRequest) (protocol.FilesResponse, error) {
+	t, err := s.open(actor, req.Owner, req.Path)
+	if err != nil {
+		return protocol.FilesResponse{}, err
+	}
+	if !t.info.IsDir() {
+		return protocol.FilesResponse{}, invalid("not a folder")
+	}
+	des, err := os.ReadDir(t.abs)
+	if err != nil {
+		return protocol.FilesResponse{}, err
+	}
+	priv := canManage(actor, t.owner.Login)
+
+	var out []protocol.FileEntry
+	truncated := false
+	for _, de := range des {
+		name := de.Name()
+		if strings.HasPrefix(name, TempPrefix) {
+			continue
+		}
+		if IsJunkName(name) {
+			continue
+		}
+		// Имена, созданные в обход API (недопустимые символы, не NFC), адресовать нельзя.
+		if c, err := CleanName(name); err != nil || c != name {
+			continue
+		}
+		info, err := de.Info()
+		if err != nil || !okKind(info) {
+			continue
+		}
+		rel := Join(t.rel, name)
+		if !priv {
+			vis, err := t.eng.Visible(actor, t.owner.Login, rel, info.IsDir())
+			if err != nil {
+				return protocol.FilesResponse{}, err
+			}
+			if !vis {
+				continue
+			}
+		}
+		if len(out) >= maxListEntries {
+			truncated = true
+			break
+		}
+		e, err := s.entryFor(t.eng, actor, t.owner, rel, info)
+		if err != nil {
+			return protocol.FilesResponse{}, err
+		}
+		out = append(out, e)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].IsDir != out[j].IsDir {
+			return out[i].IsDir
+		}
+		a, b := strings.ToLower(out[i].Name), strings.ToLower(out[j].Name)
+		if a != b {
+			return a < b
+		}
+		return out[i].Name < out[j].Name
+	})
+	return protocol.FilesResponse{Entries: out, Truncated: truncated}, nil
 }
 
 func (s *Service) do(actor Actor, req protocol.FilesRequest) (protocol.FilesResponse, error) {
 	switch req.Op {
 	case protocol.FilesOpListOwners:
 		return s.listOwners(actor)
+	case protocol.FilesOpListGroup:
+		return s.doListGroup(actor, req)
 	case protocol.FilesOpList:
 		return s.doList(actor, req)
 	case protocol.FilesOpStat:

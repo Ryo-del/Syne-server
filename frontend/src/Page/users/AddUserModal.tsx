@@ -1,5 +1,6 @@
 
 import './add-user-modal.css'
+import type { Group } from '../groups/groupsApi'
 import { useState } from 'react'
 
 type UserFormValues = {
@@ -7,11 +8,13 @@ type UserFormValues = {
   role: 'Ученик' | 'Учитель'
   name: string
   surname: string
+  groupId: string // '' — без группы
 }
 
 type AddUserModalProps = {
   mode: 'create' | 'edit'
   initialUser?: UserFormValues
+  groups?: Group[]
   onClose: () => void
   onSubmit: (user: UserFormValues) => void
 }
@@ -25,6 +28,7 @@ function generateId() {
 function AddUserModal({
   mode,
   initialUser,
+  groups = [],
   onClose,
   onSubmit,
 }: AddUserModalProps) {
@@ -37,7 +41,7 @@ function AddUserModal({
   const [role, setRole] = useState<'Ученик' | 'Учитель'>(
     initialUser?.role ?? 'Ученик'
   )
-
+    const [groupId, setGroupId] = useState(initialUser?.groupId ?? '')
   const [name, setName] = useState(initialUser?.name ?? '')
 
   const [surname, setSurname] = useState(
@@ -54,6 +58,7 @@ function AddUserModal({
       role,
       name: name.trim(),
       surname: surname.trim(),
+      groupId: groupId,
     })
   }
 
@@ -179,7 +184,19 @@ function AddUserModal({
             </div>
 
           </div>
-
+                            {!isEdit && role === 'Ученик' && (
+            <div className="form-field">
+              <label>Группа (необязательно)</label>
+              <select value={groupId} onChange={(e) => setGroupId(e.target.value)}>
+                <option value="">Без группы</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={String(g.id)}>
+                    {g.emoji} {g.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="form-field">
 
             <label>Имя</label>

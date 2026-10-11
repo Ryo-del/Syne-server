@@ -38,10 +38,12 @@ CREATE TABLE IF NOT EXISTS user_blocked (
 // ---------- users (таблица users принадлежит пакету db) ----------
 
 type User struct {
-	Login string
-	FName string
-	SName string
-	Role  string
+	Login      string
+	FName      string
+	SName      string
+	Role       string
+	Group      string // имя группы, "" — без группы
+	GroupEmoji string
 }
 
 // DisplayName — «Фамилия Имя»; если имени нет, логин.
@@ -54,9 +56,11 @@ func (u User) DisplayName() string {
 
 func (s *SQLStore) UserByLogin(login string) (User, bool, error) {
 	var u User
-	err := s.db.QueryRow(
-		`SELECT login, fname, sname, role FROM users WHERE login = ?`, login,
-	).Scan(&u.Login, &u.FName, &u.SName, &u.Role)
+	err := s.db.QueryRow(`
+		SELECT u.login, u.fname, u.sname, u.role, COALESCE(g.name, ''), COALESCE(g.emoji, '')
+		FROM users u LEFT JOIN study_groups g ON g.id = u.group_id
+		WHERE u.login = ?`, login,
+	).Scan(&u.Login, &u.FName, &u.SName, &u.Role, &u.Group, &u.GroupEmoji)
 	if errors.Is(err, sql.ErrNoRows) {
 		return User{}, false, nil
 	}
@@ -67,7 +71,9 @@ func (s *SQLStore) UserByLogin(login string) (User, bool, error) {
 }
 
 func (s *SQLStore) AllUsers() ([]User, error) {
-	rows, err := s.db.Query(`SELECT login, fname, sname, role FROM users`)
+	rows, err := s.db.Query(`
+		SELECT u.login, u.fname, u.sname, u.role, COALESCE(g.name, ''), COALESCE(g.emoji, '')
+		FROM users u LEFT JOIN study_groups g ON g.id = u.group_id`)
 	if err != nil {
 		return nil, err
 	}
@@ -75,12 +81,48 @@ func (s *SQLStore) AllUsers() ([]User, error) {
 	var out []User
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.Login, &u.FName, &u.SName, &u.Role); err != nil {
+		if err := rows.Scan(&u.Login, &u.FName, &u.SName, &u.Role, &u.Group, &u.GroupEmoji); err != nil {
 			return nil, err
 		}
 		out = append(out, u)
 	}
 	return out, rows.Err()
+}
+
+type GroupInfo struct {
+	Name  string
+	Emoji string
+}
+
+func (s *SQLStore) AllGroups() ([]GroupInfo, error) {
+	rows, err := s.db.Query(`SELECT name, emoji FROM study_groups`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []GroupInfo
+	for rows.Next() {
+		var g GroupInfo
+		if err := rows.Scan(&g.Name, &g.Emoji); err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
+func (s *SQLStore) GroupByName(name string) (GroupInfo, bool, error) {
+	var g GroupInfo
+	err := s.db.QueryRow(
+		`SELECT name, emoji FROM study_groups WHERE name_key = ?`, strings.ToLower(name),
+	).Scan(&g.Name, &g.Emoji)
+	if errors.Is(err, sql.ErrNoRows) {
+		return GroupInfo{}, false, nil
+	}
+	if err != nil {
+		return GroupInfo{}, false, err
+	}
+	return g, true, nil
 }
 
 // OwnersWithVisibleRules — владельцы, у которых есть хотя бы одно правило
