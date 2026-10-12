@@ -4,6 +4,8 @@ filippo.io/keygen v0.0.0-20260114151900-8e2790ea4c5b h1:REI1FbdW71yO56Are4XAxD+O
 filippo.io/keygen v0.0.0-20260114151900-8e2790ea4c5b/go.mod h1:9nnw1SlYHYuPSo/3wjQzNjSbeHlq2NsKo5iEtfJPWP0=
 github.com/Ryo-del/Syne-protocol v0.0.2-0.20261011193327-f8a501d1d5eb h1:sUtyHgJJUaaMQAnBCZiFGAaGg4ZEdNM5TYx7k03VVMU=
 github.com/Ryo-del/Syne-protocol v0.0.2-0.20261011193327-f8a501d1d5eb/go.mod h1:Z37AejtRuVc3afzudUFbezxuHzjPnnJidwfR+LNYiLI=
+github.com/Ryo-del/Syne-protocol v0.0.2-0.20261012082050-2be9aaa7012e h1:HEtF8D9/sanknSZS7vbq4g+PE1uRypuTSrsbI2LbwOE=
+github.com/Ryo-del/Syne-protocol v0.0.2-0.20261012082050-2be9aaa7012e/go.mod h1:Z37AejtRuVc3afzudUFbezxuHzjPnnJidwfR+LNYiLI=
 github.com/benbjohnson/clock v1.3.5 h1:VvXlSJBzZpA/zum6Sj74hxwYI2DIxRWuNIoXAzHZz5o=
 github.com/benbjohnson/clock v1.3.5/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=

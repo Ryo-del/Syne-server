@@ -3,7 +3,7 @@ module server
 go 1.26.5
 
 require (
-	github.com/Ryo-del/Syne-protocol v0.0.2-0.20261011193327-f8a501d1d5eb
+	github.com/Ryo-del/Syne-protocol v0.0.2-0.20261012082050-2be9aaa7012e
 	github.com/libp2p/go-libp2p v0.48.0
 	github.com/shirou/gopsutil/v4 v4.26.8
 	golang.org/x/text v0.41.0

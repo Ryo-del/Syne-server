@@ -519,6 +519,8 @@ func (s *Service) do(actor Actor, req protocol.FilesRequest) (protocol.FilesResp
 	switch req.Op {
 	case protocol.FilesOpListOwners:
 		return s.listOwners(actor)
+	case protocol.FilesOpShareGroup:
+		return s.doShareGroup(actor, req)
 	case protocol.FilesOpListGroup:
 		return s.doListGroup(actor, req)
 	case protocol.FilesOpList:

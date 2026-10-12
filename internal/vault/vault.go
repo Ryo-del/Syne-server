@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"strconv"
 	"time"
 
 	"server/internal/db"
@@ -16,6 +17,7 @@ const (
 	maxMailboxMessage = 512 * 1024
 	mailboxBatch      = 100
 )
+const groupBatch = 200
 
 type Handler struct {
 	DB *sql.DB
@@ -77,6 +79,63 @@ func (h *Handler) handle(remotePeer string, req protocol.SyncRequest) protocol.S
 	ok := protocol.SyncResponse{OK: true}
 
 	switch req.Type {
+	case protocol.SyncOpGroupList:
+		groups, err := db.GroupsForUser(h.DB, info.Login)
+		if err != nil {
+			slog.Error("sync: group list failed", "err", err)
+			return fail("internal error")
+		}
+		for _, g := range groups {
+			ok.Groups = append(ok.Groups, protocol.GroupInfo{ID: g.ID, Name: g.Name, Emoji: g.Emoji, Key: g.Key})
+		}
+
+	case protocol.SyncOpGroupSend:
+		if len(req.Data) == 0 || len(req.Data) > maxMailboxMessage {
+			return fail("bad message size")
+		}
+		allowed, err := db.CanAccessGroup(h.DB, info.Login, req.GroupID)
+		if err != nil {
+			slog.Error("sync: group access check failed", "err", err)
+			return fail("internal error")
+		}
+		if !allowed {
+			return fail("not a member of this group")
+		}
+		msg, err := protocol.UnmarshalMessage(req.Data)
+		if err != nil {
+			return fail("invalid message")
+		}
+		if err := protocol.ValidateMessage(msg); err != nil {
+			return fail("invalid message: " + err.Error())
+		}
+		gid := strconv.FormatInt(req.GroupID, 10)
+		if msg.Type != protocol.MsgChat || msg.Target != protocol.TargetGroup ||
+			msg.TargetID != gid || msg.ChatID != "grp:"+gid ||
+			msg.FromUser != info.Login || msg.From != info.PeerID {
+			return fail("message does not match the group or sender")
+		}
+		if err := db.PushGroupMessage(h.DB, req.GroupID, info.Login, msg.ID, req.Data); err != nil {
+			slog.Error("sync: group push failed", "err", err)
+			return fail("internal error")
+		}
+
+	case protocol.SyncOpGroupFetch:
+		allowed, err := db.CanAccessGroup(h.DB, info.Login, req.GroupID)
+		if err != nil {
+			slog.Error("sync: group access check failed", "err", err)
+			return fail("internal error")
+		}
+		if !allowed {
+			return fail("not a member of this group")
+		}
+		rows, err := db.FetchGroupMessages(h.DB, req.GroupID, req.AfterID, groupBatch)
+		if err != nil {
+			slog.Error("sync: group fetch failed", "err", err)
+			return fail("internal error")
+		}
+		for _, r := range rows {
+			ok.Items = append(ok.Items, protocol.MailboxItem{ID: r.ID, Data: r.Data})
+		}
 	case protocol.SyncOpVaultGet:
 		data, exists, err := db.GetVault(h.DB, info.Login)
 		if err != nil {
