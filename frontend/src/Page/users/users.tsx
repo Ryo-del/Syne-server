@@ -1,4 +1,4 @@
-
+import { apiBase } from '../../api'
 import './users.css'
 import AddUserModal from './AddUserModal'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -70,9 +70,7 @@ function Students() {
 
   const loadUsers = async () => {
     try {
-      const response = await fetch(
-        'http://localhost:8080/api/users'
-      )
+            const response = await fetch(`${await apiBase()}/api/users`)
 
       if (!response.ok) {
         throw new Error(
@@ -185,17 +183,13 @@ function Students() {
           : 'student'
       )
 
-      const response = await fetch(
-        'http://localhost:8080/api/users',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type':
-              'application/x-www-form-urlencoded',
-          },
-          body: body.toString(),
-        }
-      )
+      const response = await fetch(`${await apiBase()}/api/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: body.toString(),
+      })
 
       if (!response.ok) {
         const data = await response.json().catch(() => null)
@@ -231,12 +225,10 @@ function Students() {
   }) => {
     try {
       const response = await fetch(
-        `http://localhost:8080/api/users/${encodeURIComponent(user.id)}`,
+        `${await apiBase()}/api/users/${encodeURIComponent(user.id)}`,
         {
           method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             fname: user.name,
             sname: user.surname,
@@ -281,7 +273,7 @@ function Students() {
 
     try {
       const response = await fetch(
-        `http://localhost:8080/api/users/${encodeURIComponent(studentId)}`,
+        `${await apiBase()}/api/users/${encodeURIComponent(studentId)}`,
         { method: 'DELETE' }
       )
 
