@@ -3,8 +3,9 @@ module server
 go 1.26.5
 
 require (
-	github.com/Ryo-del/Syne-protocol v0.0.2-0.20261012082050-2be9aaa7012e
+	github.com/Ryo-del/Syne-protocol v0.0.2-0.20261015161008-4a7131063f52
 	github.com/libp2p/go-libp2p v0.48.0
+	github.com/multiformats/go-multiaddr v0.16.1
 	github.com/shirou/gopsutil/v4 v4.26.8
 	golang.org/x/text v0.41.0
 	modernc.org/sqlite v1.58.0
@@ -49,7 +50,6 @@ require (
 	github.com/mr-tron/base58 v1.3.0 // indirect
 	github.com/multiformats/go-base32 v0.1.0 // indirect
 	github.com/multiformats/go-base36 v0.2.0 // indirect
-	github.com/multiformats/go-multiaddr v0.16.1 // indirect
 	github.com/multiformats/go-multiaddr-dns v0.4.1 // indirect
 	github.com/multiformats/go-multiaddr-fmt v0.1.0 // indirect
 	github.com/multiformats/go-multibase v0.3.0 // indirect

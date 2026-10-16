@@ -67,3 +67,12 @@
   color: #626a74;
   font-size: 14px;
 }
+
+.error-reports-window { overflow: auto; }
+.error-report-list { display: flex; flex-direction: column; gap: 10px; }
+.error-report-card { padding: 14px 16px; border: 1px solid #242a30; border-radius: 9px; background: #15181d; }
+.error-report-meta { display: flex; align-items: center; gap: 12px; color: #e7e9ec; font-size: 13px; }
+.error-report-meta span, .error-report-meta time { color: #7c838d; }
+.error-report-meta time { margin-left: auto; }
+.error-report-card p { margin: 12px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; color: #c8cbd0; font-size: 13px; line-height: 1.5; }
+.error-report-empty { padding: 40px 16px; text-align: center; color: #626a74; border: 1px solid #242a30; border-radius: 9px; }

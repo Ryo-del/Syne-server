@@ -253,6 +253,7 @@ func HostApi(port string, store *config.Store, h host.Host, collector *metrics.C
 		})
 	})
 	mux.HandleFunc("/api/groups", groupsHandler(database))
+	mux.HandleFunc("/api/error-reports", errorReportsHandler(database))
 	mux.HandleFunc("/api/groups/", groupRoutes(database))
 	mux.HandleFunc("/api/server-info", func(w http.ResponseWriter, r *http.Request) {
 		cfg := store.Get()
@@ -324,6 +325,26 @@ func HostApi(port string, store *config.Store, h host.Host, collector *metrics.C
 
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		slog.Error("HTTP API stopped", "error", err)
+	}
+}
+
+func errorReportsHandler(database *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+		reports, err := db.ListErrorReports(database, 500)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to load error reports")
+			return
+		}
+		count, err := db.CountErrorReports(database)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to count error reports")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"count": count, "reports": reports})
 	}
 }
 

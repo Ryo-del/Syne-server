@@ -108,6 +108,46 @@ func TestServiceReadAndDownload(t *testing.T) {
 	}
 }
 
+func TestUploadReplaceChecksBaseModTime(t *testing.T) {
+	e := newSvcEnv(t)
+	e.write("alice", "report.txt", "old")
+	info, err := os.Stat(e.abs("alice", "report.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := info.ModTime().UnixMilli()
+	req := rq(protocol.FilesOpUpload, "", "")
+	req.Name, req.Size, req.OnConflict, req.BaseModTime = "report.txt", 3, protocol.ConflictReplace, base
+	up, err := e.svc.BeginUpload(uAlice, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = up.Commit(strings.NewReader("new")); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.read("alice", "report.txt"); got != "new" {
+		t.Fatalf("replaced content = %q", got)
+	}
+
+	info, err = os.Stat(e.abs("alice", "report.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	base = info.ModTime().UnixMilli()
+	req.BaseModTime = base
+	up, err = e.svc.BeginUpload(uAlice, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.write("alice", "report.txt", "raced")
+	if _, err = up.Commit(strings.NewReader("bad")); err == nil || codeOf(err) != protocol.FilesErrConflict {
+		t.Fatalf("commit after concurrent edit err = %v, want conflict", err)
+	}
+	if got := e.read("alice", "report.txt"); got != "raced" {
+		t.Fatalf("concurrent content = %q", got)
+	}
+}
+
 func TestServiceUpload(t *testing.T) {
 	e := newSvcEnv(t)
 

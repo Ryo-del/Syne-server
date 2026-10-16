@@ -17,6 +17,14 @@ type MailboxRow struct {
 	Data []byte
 }
 
+type ErrorReport struct {
+	ID        int64  `json:"id"`
+	Name      string `json:"name"`
+	IP        string `json:"ip"`
+	Error     string `json:"error"`
+	CreatedAt int64  `json:"created_at"`
+}
+
 func initSyncSchema(db *sql.DB) error {
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS vaults (
@@ -34,8 +42,46 @@ func initSyncSchema(db *sql.DB) error {
 			created_at INTEGER NOT NULL
 		);
 		CREATE INDEX IF NOT EXISTS idx_mailbox_to ON mailbox(to_login, id);
+
+		CREATE TABLE IF NOT EXISTS error_reports (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			login TEXT NOT NULL,
+			name TEXT NOT NULL,
+			ip TEXT NOT NULL,
+			error TEXT NOT NULL,
+			created_at INTEGER NOT NULL
+		);
+		CREATE INDEX IF NOT EXISTS idx_error_reports_created ON error_reports(id DESC);
 	`)
 	return err
+}
+
+func AddErrorReport(db *sql.DB, login, name, ip, message string) error {
+	_, err := db.Exec(`INSERT INTO error_reports (login, name, ip, error, created_at) VALUES (?, ?, ?, ?, ?)`, login, name, ip, message, time.Now().UnixMilli())
+	return err
+}
+
+func ListErrorReports(db *sql.DB, limit int) ([]ErrorReport, error) {
+	rows, err := db.Query(`SELECT id, name, ip, error, created_at FROM error_reports ORDER BY id DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]ErrorReport, 0)
+	for rows.Next() {
+		var row ErrorReport
+		if err := rows.Scan(&row.ID, &row.Name, &row.IP, &row.Error, &row.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}
+
+func CountErrorReports(db *sql.DB) (int64, error) {
+	var count int64
+	err := db.QueryRow(`SELECT COUNT(*) FROM error_reports`).Scan(&count)
+	return count, err
 }
 
 // GetSessionInfo возвращает логин и peer_id, к которым привязана сессия.

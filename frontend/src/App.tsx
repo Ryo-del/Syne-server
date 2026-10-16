@@ -13,6 +13,7 @@ import Teacher from './Page/MetricWindows/Teacher/Teacher'
 import Errors from './Page/MetricWindows/Errors/Errors'
 import User from './Page/users/users'
 import Groups from './Page/groups/Groups'
+import Events from './Page/events/Events'
 import SetupWindow from './Page/Setup/SetupWindow'
 
 function App() {
@@ -100,7 +101,7 @@ function App() {
             Сеть
           </button>
 
-          <button className="nav-item">
+          <button className={`nav-item ${activePage === 'events' ? 'active' : ''}`} onClick={() => setActivePage('events')}>
             <span>📋</span>
             Журнал событий
           </button>
@@ -119,7 +120,8 @@ function App() {
         {activePage === 'monitoring' && <Monitoring />}
         {activePage === 'users' && <User />}
         {activePage === 'settings' && <Settings />}
-                {activePage === 'groups' && <Groups />}
+        {activePage === 'groups' && <Groups />}
+        {activePage === 'events' && <Events />}
       </main>
     </div>
   )

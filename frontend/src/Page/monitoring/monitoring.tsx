@@ -32,6 +32,8 @@ type UptimeResponse = {
 }
 
 function Monitoring() {
+  const [studentCount, setStudentCount] = useState(0)
+  const [teacherCount, setTeacherCount] = useState(0)
   const [cpu, setCPU] = useState(0)
 
   const [ram, setRAM] = useState(0)
@@ -44,6 +46,7 @@ function Monitoring() {
   const [upload, setUpload] = useState(0)
 
   const [uptime, setUptime] = useState(0)
+  const [errorCount, setErrorCount] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -134,16 +137,51 @@ function Monitoring() {
       }
     }
 
+    const loadErrors = async () => {
+      try {
+        const response = await fetch(`${await apiBase()}/api/error-reports`)
+        if (!response.ok) throw new Error('Failed to fetch error reports')
+        const data: { count: number } = await response.json()
+        if (!cancelled) setErrorCount(data.count)
+      } catch (err) { console.error('Error reports error:', err) }
+    }
+
     loadMetrics()
     loadUptime()
+    loadErrors()
 
     const metricsInterval = setInterval(loadMetrics, 1000)
     const uptimeInterval = setInterval(loadUptime, 1000)
+    const errorsInterval = setInterval(loadErrors, 5000)
 
     return () => {
       cancelled = true
       clearInterval(metricsInterval)
       clearInterval(uptimeInterval)
+      clearInterval(errorsInterval)
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const loadUserCounts = async () => {
+      try {
+        const response = await fetch(`${await apiBase()}/api/users`)
+        if (!response.ok) throw new Error('Failed to fetch users')
+        const users: { Role?: string }[] = await response.json()
+        if (!Array.isArray(users)) throw new Error('Invalid users response')
+        if (cancelled) return
+        setStudentCount(users.filter((user) => user.Role?.trim().toLowerCase() === 'student').length)
+        setTeacherCount(users.filter((user) => user.Role?.trim().toLowerCase() === 'teacher').length)
+      } catch (err) {
+        console.error('Monitoring users error:', err)
+      }
+    }
+    void loadUserCounts()
+    const interval = setInterval(loadUserCounts, 5000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
     }
   }, [])
 
@@ -237,47 +275,13 @@ function Monitoring() {
       <div className="divider" />
 
       <div className="table-row">
-        <button
-          className="param-name metric-button"
-          onClick={() => openMetric('Online Users')}
-        >
-          Online Users
-        </button>
-
-        <span className="param-value">1</span>
+        <span className="param-name">Students</span>
+        <span className="param-value">{studentCount}</span>
       </div>
 
       <div className="table-row">
-        <button
-          className="param-name metric-button"
-          onClick={() => openMetric('Connections')}
-        >
-          Connections
-        </button>
-
-        <span className="param-value">3</span>
-      </div>
-
-      <div className="table-row">
-        <button
-          className="param-name metric-button"
-          onClick={() => openMetric('Study')}
-        >
-          Study
-        </button>
-
-        <span className="param-value">2</span>
-      </div>
-
-      <div className="table-row">
-        <button
-          className="param-name metric-button"
-          onClick={() => openMetric('Teacher')}
-        >
-          Teacher
-        </button>
-
-        <span className="param-value">1</span>
+        <span className="param-name">Teachers</span>
+        <span className="param-value">{teacherCount}</span>
       </div>
 
       {/* Storage */}
@@ -321,7 +325,7 @@ function Monitoring() {
           Errors
         </button>
 
-        <span className="param-value error-value">12</span>
+        <span className="param-value error-value">{errorCount}</span>
       </div>
     </>
   )

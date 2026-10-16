@@ -175,6 +175,9 @@ func (s *Service) BeginUpload(actor Actor, req protocol.FilesRequest) (*Upload, 
 		size:   req.Size,
 	}
 	var oldSize int64
+	if req.BaseModTime != 0 && req.OnConflict != protocol.ConflictReplace {
+		return nil, invalid("base_mod_time requires replace policy")
+	}
 	if existingName != "" {
 		switch req.OnConflict {
 		case "":
@@ -191,6 +194,9 @@ func (s *Service) BeginUpload(actor Actor, req protocol.FilesRequest) (*Upload, 
 			if exInfo.IsDir() {
 				return nil, invalid("cannot replace a folder with a file")
 			}
+			if req.BaseModTime != 0 && exInfo.ModTime().UnixMilli() != req.BaseModTime {
+				return nil, newErr(protocol.FilesErrConflict, "the file was changed by someone else")
+			}
 			if !canManage(actor, parent.owner.Login) {
 				ok, err := parent.eng.Allowed(actor, parent.owner.Login, Join(parent.rel, existingName), protocol.ActionDelete)
 				if err != nil {
@@ -203,9 +209,16 @@ func (s *Service) BeginUpload(actor Actor, req protocol.FilesRequest) (*Upload, 
 			up.replace = true
 			up.name = existingName
 			oldSize = exInfo.Size()
+			if req.BaseModTime != 0 {
+				up.check = true
+				up.baseMod = req.BaseModTime
+			}
 		default:
 			return nil, invalid("unknown conflict policy")
 		}
+	}
+	if req.BaseModTime != 0 && existingName == "" {
+		return nil, newErr(protocol.FilesErrConflict, "the file was removed by someone else")
 	}
 	return s.startUpload(up, oldSize)
 }

@@ -5,12 +5,14 @@ import (
 	"errors"
 	"log/slog"
 	"strconv"
+	"strings"
 	"time"
 
 	"server/internal/db"
 
 	protocol "github.com/Ryo-del/Syne-protocol"
 	"github.com/libp2p/go-libp2p/core/network"
+	manet "github.com/multiformats/go-multiaddr/net"
 )
 
 const (
@@ -42,7 +44,11 @@ func (h *Handler) HandleStream(stream network.Stream) {
 		return
 	}
 
-	resp := h.handle(stream.Conn().RemotePeer().String(), req)
+	remoteIP := "unknown"
+	if ip, err := manet.ToIP(stream.Conn().RemoteMultiaddr()); err == nil {
+		remoteIP = ip.String()
+	}
+	resp := h.handle(stream.Conn().RemotePeer().String(), req, remoteIP)
 	resp.Type = protocol.SyncTypeResponse
 
 	out, err := protocol.MarshalJSON(resp)
@@ -55,7 +61,7 @@ func (h *Handler) HandleStream(stream network.Stream) {
 	}
 }
 
-func (h *Handler) handle(remotePeer string, req protocol.SyncRequest) protocol.SyncResponse {
+func (h *Handler) handle(remotePeer string, req protocol.SyncRequest, remoteIP string) protocol.SyncResponse {
 	fail := func(msg string) protocol.SyncResponse {
 		return protocol.SyncResponse{Error: msg}
 	}
@@ -205,6 +211,21 @@ func (h *Handler) handle(remotePeer string, req protocol.SyncRequest) protocol.S
 	case protocol.SyncOpLogout:
 		if err := db.DeleteSession(h.DB, req.SessionID); err != nil {
 			slog.Error("sync: logout failed", "err", err)
+			return fail("internal error")
+		}
+
+	case "error_report":
+		message := strings.TrimSpace(string(req.Data))
+		if message == "" || len(message) > 10000 {
+			return fail("error report must contain 1 to 10000 characters")
+		}
+		fname, sname, _, err := db.GetUserKeys(h.DB, info.Login)
+		if err != nil {
+			slog.Error("sync: error report user lookup failed", "err", err)
+			return fail("internal error")
+		}
+		if err := db.AddErrorReport(h.DB, info.Login, strings.TrimSpace(fname+" "+sname), remoteIP, message); err != nil {
+			slog.Error("sync: error report save failed", "err", err)
 			return fail("internal error")
 		}
 

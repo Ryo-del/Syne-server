@@ -1,0 +1,12 @@
+.events-page { min-height: 100%; padding: 32px; }
+.events-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; }
+.events-header h1 { margin: 0; font-size: 32px; letter-spacing: -.03em; }
+.events-header p { margin: 7px 0 0; color: rgba(255,255,255,.45); font-size: 14px; }
+.events-header strong { min-width: 44px; padding: 8px 12px; border: 1px solid rgba(255,255,255,.08); border-radius: 9px; background: rgba(255,255,255,.04); color: #ff7777; text-align: center; }
+.events-list { display: flex; flex-direction: column; gap: 9px; }
+.event-card { padding: 15px 16px; border: 1px solid rgba(255,255,255,.07); border-radius: 12px; background: rgba(255,255,255,.035); }
+.event-meta { display: flex; align-items: center; gap: 14px; color: #e7e9ec; font-size: 13px; }
+.event-meta span, .event-meta time { color: rgba(255,255,255,.45); }
+.event-meta time { margin-left: auto; }
+.event-error { margin-top: 12px; white-space: pre-wrap; overflow-wrap: anywhere; color: rgba(255,255,255,.76); font-size: 14px; line-height: 1.55; }
+.events-empty { padding: 42px 20px; border: 1px solid rgba(255,255,255,.07); border-radius: 12px; color: rgba(255,255,255,.42); text-align: center; }
