@@ -148,54 +148,57 @@ export default function Settings() {
 
   return (
     <div className="settings">
-      <h1>Настройки</h1>
+      <header className="settings-head">
+        <span className="settings-kicker">Параметры сервера</span>
+        <h1>Настройки</h1>
+      </header>
 
-      <section className="card">
-        <h2>Мониторинг</h2>
-        <label>
-          Время между запросами, сек (1–60)
+      <section className="settings-card">
+        <h2><span>◷</span> Мониторинг</h2>
+        <label className="settings-field">
+          <span>Время между запросами, сек (1–60)</span>
           <input value={form.monitor_interval_sec} inputMode="numeric" onChange={set('monitor_interval_sec')} />
         </label>
       </section>
 
-      <section className="card">
-        <h2>Список учеников</h2>
-        <div className="row">
-          <label>
-            Цифр в случайном id (4–12)
+      <section className="settings-card">
+        <h2><span>♙</span> Список учеников</h2>
+        <div className="settings-row">
+          <label className="settings-field">
+            <span>Цифр в случайном id (4–12)</span>
             <input value={form.id_digits} inputMode="numeric" onChange={set('id_digits')} />
           </label>
-          <label>
-            Символов в ClaimCode (6–32)
+          <label className="settings-field">
+            <span>Символов в ClaimCode (6–32)</span>
             <input value={form.claim_code_length} inputMode="numeric" onChange={set('claim_code_length')} />
           </label>
         </div>
-        <div className="row">
-          <button className="secondary" onClick={importUsers} disabled={busy}>Импортировать список</button>
-          <button className="secondary" onClick={exportUsers} disabled={busy}>Экспортировать список</button>
+        <div className="settings-actions">
+          <button className="settings-secondary" onClick={importUsers} disabled={busy}>Импортировать список</button>
+          <button className="settings-secondary" onClick={exportUsers} disabled={busy}>Экспортировать список</button>
         </div>
-        <p className="hint">CSV: login;fname;sname;role. Логин можно оставить пустым, он сгенерируется.</p>
+        <p className="settings-hint">CSV: login;fname;sname;role. Логин можно оставить пустым, он сгенерируется.</p>
       </section>
 
-      <section className="card">
-        <h2>Сеть</h2>
-        <div className="row">
-          <label>
-            HTTP порт
+      <section className="settings-card">
+        <h2><span>⌁</span> Сеть</h2>
+        <div className="settings-row">
+          <label className="settings-field">
+            <span>HTTP порт</span>
             <input value={form.http_port} inputMode="numeric" onChange={set('http_port')} />
           </label>
-          <label>
-            P2P порт
+          <label className="settings-field">
+            <span>P2P порт</span>
             <input value={form.p2p_port} inputMode="numeric" onChange={set('p2p_port')} />
           </label>
         </div>
-        <button className="secondary" onClick={createClientConfig} disabled={busy}>
+        <button className="settings-secondary" onClick={createClientConfig} disabled={busy}>
           Создать client-config.txt
         </button>
       </section>
 
-      {msg && <div className={`msg ${msg.kind}`}>{msg.text}</div>}
-      <button className="primary" onClick={saveSettings} disabled={busy}>Сохранить</button>
+      {msg && <div className={`settings-message ${msg.kind}`}>{msg.text}</div>}
+      <button className="settings-primary" onClick={saveSettings} disabled={busy}>Сохранить настройки</button>
     </div>
   )
 }

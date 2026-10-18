@@ -1,29 +1,117 @@
-.settings { max-width: 640px; display: flex; flex-direction: column; gap: 16px; }
-.settings h1 { margin: 0 0 8px; }
-.settings .card {
-  padding: 20px;
+.settings {
+  width: min(100%, 720px);
   display: flex;
   flex-direction: column;
   gap: 14px;
-  border: 1px solid #20242a;
-  border-radius: 10px;
-  background: #0f1115;
+  padding-bottom: 28px;
 }
-.settings h2 { margin: 0; font-size: 16px; }
-.settings .row { display: flex; gap: 12px; flex-wrap: wrap; }
-.settings label { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 6px; color: #858b94; font-size: 13px; }
-.settings input {
-  padding: 9px 11px;
-  border: 1px solid #20242a;
-  border-radius: 7px;
-  background: #0b0d10;
+
+.settings-head {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 4px;
+}
+
+.settings-kicker {
+  color: #858b94;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+
+.settings h1 { margin: 0; font-size: 28px; letter-spacing: -.03em; }
+
+.settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #292e36;
+  border-radius: 12px;
+  background: #14171c;
+}
+
+.settings-card h2 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
   color: #e7e9ec;
+  font-size: 15px;
+  font-weight: 650;
 }
-.settings .hint { margin: 0; color: #858b94; font-size: 12px; }
-.settings button { padding: 10px 16px; border: 0; border-radius: 7px; cursor: pointer; }
-.settings button:disabled { opacity: 0.5; cursor: default; }
-.settings .primary { align-self: flex-start; background: #0a60e2; color: #fff; }
-.settings .secondary { background: #1b1f25; color: #e7e9ec; }
-.settings .msg { padding: 10px 12px; border-radius: 7px; font-size: 13px; }
-.settings .msg.ok { background: #10301c; color: #6fdc8c; }
-.settings .msg.err { background: #3a1518; color: #ff8a8a; }
+
+.settings-card h2 span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid #303641;
+  border-radius: 8px;
+  background: #1b2028;
+  color: #9aa9bd;
+  font-size: 16px;
+}
+
+.settings-row, .settings-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.settings-field { flex: 1; min-width: 190px; display: flex; flex-direction: column; gap: 8px; }
+.settings-field > span {
+  color: #9299a4;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.settings input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid #303641;
+  border-radius: 8px;
+  outline: none;
+  background: #0e1116;
+  color: #e7e9ec;
+  font: inherit;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.settings input:focus { border-color: #5586df; box-shadow: 0 0 0 3px #3978df22; }
+.settings-hint { margin: 0; color: #7f8792; font-size: 12px; line-height: 1.45; }
+
+.settings button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid #343b46;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+.settings button:hover:not(:disabled) { transform: translateY(-1px); }
+.settings button:disabled { opacity: .5; cursor: default; }
+.settings .settings-secondary { background: #1b2028; color: #d9dde4; }
+.settings .settings-secondary:hover:not(:disabled) { background: #242b35; border-color: #465160; }
+.settings .settings-primary {
+  align-self: flex-start;
+  min-width: 170px;
+  border-color: #3978df;
+  background: #3978df;
+  color: white;
+}
+.settings .settings-primary:hover:not(:disabled) { background: #4a87ec; }
+
+.settings-message { padding: 11px 13px; border: 1px solid transparent; border-radius: 9px; font-size: 13px; }
+.settings-message.ok { border-color: #245b3c; background: #14291d; color: #80dda0; }
+.settings-message.err { border-color: #633137; background: #30191d; color: #ff9a9e; }
+
+@media (max-width: 560px) {
+  .settings-card { padding: 14px; }
+  .settings-row { flex-direction: column; }
+  .settings-field { min-width: 0; }
+  .settings-actions { flex-direction: column; }
+}

@@ -174,7 +174,7 @@ func checkRuleTarget(clean string, isDir bool, action protocol.Action) error {
 		return fmt.Errorf("%w: paste is folder-only", ErrInvalidRule)
 	}
 	if !isDir && action == protocol.ActionEdit && !EditableName(Base(clean)) {
-		return fmt.Errorf("%w: only .txt files are editable", ErrInvalidRule)
+		return fmt.Errorf("%w: this file format is not editable", ErrInvalidRule)
 	}
 	return nil
 }

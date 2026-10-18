@@ -177,9 +177,35 @@ func Ancestors(rel string) []string {
 	return append(out, "")
 }
 
-// EditableName — редактировать (Monaco) можно только .txt.
+// EditableName — разрешённый текстовый формат для просмотра и редактирования
+// в Monaco. Список синхронизирован с клиентским files/textFiles.ts.
 func EditableName(name string) bool {
-	return strings.HasSuffix(strings.ToLower(name), ".txt")
+	name = strings.ToLower(name)
+	if name == "makefile" || name == "dockerfile" {
+		return true
+	}
+	ext := ""
+	if i := strings.LastIndexByte(name, '.'); i >= 0 {
+		ext = name[i+1:]
+	} else if strings.HasPrefix(name, ".") {
+		ext = name[1:]
+	}
+	switch ext {
+	case "txt", "md", "rst", "adoc", "log",
+		"go", "py", "pyi", "pyx", "js", "jsx", "mjs", "cjs", "ts", "tsx", "mts", "cts",
+		"java", "kt", "kts", "scala", "c", "h", "cpp", "hpp", "cc", "hh", "cxx", "hxx",
+		"cs", "fs", "vb", "rs", "swift", "m", "mm", "php", "rb", "rake", "lua", "pl", "pm", "r",
+		"dart", "ex", "exs", "erl", "hrl", "hs", "lhs", "clj", "cljs", "cljc", "elm", "vue", "svelte", "astro",
+		"html", "htm", "css", "scss", "sass", "less", "styl", "svg",
+		"json", "jsonc", "json5", "yaml", "yml", "toml", "xml", "ini", "cfg", "conf", "env", "properties", "editorconfig",
+		"sql", "prisma", "graphql", "gql", "sh", "bash", "zsh", "fish", "bat", "cmd", "ps1", "psm1",
+		"dockerfile", "tf", "tfvars", "hcl", "nix", "service", "mod", "sum", "work", "makefile", "mk", "cmake",
+		"gradle", "groovy", "lock", "http", "rest", "feature", "proto", "pddl", "csv", "tsv", "graphqls",
+		"pem", "crt", "cer", "pub":
+		return true
+	default:
+		return false
+	}
 }
 
 // Resolve возвращает абсолютный путь на диске для (владелец, относительный

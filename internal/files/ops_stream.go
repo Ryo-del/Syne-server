@@ -19,7 +19,7 @@ import (
 
 // OpenRead открывает файл для передачи клиенту. forDownload — обычное
 // скачивание (право download, любой тип файла); иначе открытие в редакторе
-// (право view, только .txt до MaxEditBytes). Вызывающий закрывает файл и
+// (право view, разрешённые текстовые форматы до MaxEditBytes). Вызывающий закрывает файл и
 // отправляет ровно entry.Size байт.
 func (s *Service) OpenRead(actor Actor, req protocol.FilesRequest, forDownload bool) (*os.File, protocol.FileEntry, error) {
 	t, err := s.open(actor, req.Owner, req.Path)
@@ -38,7 +38,7 @@ func (s *Service) OpenRead(actor Actor, req protocol.FilesRequest, forDownload b
 	}
 	if !forDownload {
 		if !EditableName(Base(t.rel)) {
-			return nil, protocol.FileEntry{}, invalid("only .txt files can be opened")
+			return nil, protocol.FileEntry{}, invalid("this file format cannot be opened in the editor")
 		}
 		if t.info.Size() > MaxEditBytes {
 			return nil, protocol.FileEntry{}, invalid("file is too large to open (max 10 MiB)")
@@ -223,7 +223,7 @@ func (s *Service) BeginUpload(actor Actor, req protocol.FilesRequest) (*Upload, 
 	return s.startUpload(up, oldSize)
 }
 
-// BeginWrite — сохранение изменённого .txt. Нужно право edit. Если
+// BeginWrite — сохранение изменённого текстового файла. Нужно право edit. Если
 // BaseModTime задан и файл с тех пор менялся, возвращается ошибка conflict.
 func (s *Service) BeginWrite(actor Actor, req protocol.FilesRequest) (*Upload, error) {
 	t, err := s.open(actor, req.Owner, req.Path)
@@ -231,7 +231,7 @@ func (s *Service) BeginWrite(actor Actor, req protocol.FilesRequest) (*Upload, e
 		return nil, err
 	}
 	if t.info.IsDir() || !EditableName(Base(t.rel)) {
-		return nil, invalid("only .txt files can be edited")
+		return nil, invalid("this file format cannot be edited")
 	}
 	if err := s.require(t, actor, protocol.ActionEdit); err != nil {
 		return nil, err
