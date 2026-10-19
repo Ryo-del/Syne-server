@@ -51,8 +51,32 @@ func initSyncSchema(db *sql.DB) error {
 			error TEXT NOT NULL,
 			created_at INTEGER NOT NULL
 		);
+
+		CREATE TABLE IF NOT EXISTS user_settings (
+			user_id    INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+			data       TEXT NOT NULL,
+			updated_at INTEGER NOT NULL
+		);
 		CREATE INDEX IF NOT EXISTS idx_error_reports_created ON error_reports(id DESC);
 	`)
+	return err
+}
+
+func GetUserSettings(db *sql.DB, login string) ([]byte, bool, error) {
+	var data []byte
+	err := db.QueryRow(`SELECT s.data FROM user_settings s JOIN users u ON u.id = s.user_id WHERE u.login = ?`, login).Scan(&data)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, false, nil
+	}
+	return data, err == nil, err
+}
+
+func PutUserSettings(db *sql.DB, login string, data []byte) error {
+	_, err := db.Exec(`
+		INSERT INTO user_settings (user_id, data, updated_at)
+		SELECT id, ?, ? FROM users WHERE login = ?
+		ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at
+	`, string(data), time.Now().Unix(), login)
 	return err
 }
 

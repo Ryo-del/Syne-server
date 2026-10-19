@@ -45,6 +45,9 @@ func (a *AuthHandler) HandleStream(stream network.Stream) {
 	case protocol.AuthTypeClaimRequest:
 		a.handleClaim(stream, data)
 
+	case protocol.AuthTypePasswordChangeRequest:
+		a.handlePasswordChange(stream, data)
+
 	default:
 		slog.Error("unknown message type", "type", msgType)
 	}

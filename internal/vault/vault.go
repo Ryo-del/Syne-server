@@ -2,6 +2,7 @@ package vault
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"strconv"
@@ -157,6 +158,24 @@ func (h *Handler) handle(remotePeer string, req protocol.SyncRequest, remoteIP s
 		}
 		if err := db.PutVault(h.DB, info.Login, req.Data); err != nil {
 			slog.Error("sync: vault put failed", "err", err)
+			return fail("internal error")
+		}
+
+	case protocol.SyncOpSettingsGet:
+		data, exists, err := db.GetUserSettings(h.DB, info.Login)
+		if err != nil {
+			slog.Error("sync: settings get failed", "err", err)
+			return fail("internal error")
+		}
+		ok.Exists = exists
+		ok.Data = data
+
+	case protocol.SyncOpSettingsPut:
+		if len(req.Data) == 0 || len(req.Data) > 256*1024 || !json.Valid(req.Data) {
+			return fail("invalid settings payload")
+		}
+		if err := db.PutUserSettings(h.DB, info.Login, req.Data); err != nil {
+			slog.Error("sync: settings put failed", "err", err)
 			return fail("internal error")
 		}
 

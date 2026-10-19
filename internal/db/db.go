@@ -38,6 +38,8 @@ var ErrLoginAlreadyExists = errors.New("login already exists")
 var ErrAlreadyClaimed = errors.New("account already claimed")
 var ErrInvalidClaimCode = errors.New("invalid claim code")
 var ErrUserNotFound = errors.New("user not found")
+var ErrInvalidCurrentPassword = errors.New("invalid current password")
+var ErrInvalidSession = errors.New("invalid session")
 
 type execer interface {
 	Exec(query string, args ...any) (sql.Result, error)
@@ -349,6 +351,49 @@ func DeleteSession(db *sql.DB, sessionID string) error {
 		return err
 	}
 	return nil
+}
+
+// ChangePasswordForSession updates password-derived authentication material,
+// keeps the currently authenticated session, and revokes every other session.
+func ChangePasswordForSession(dbConn *sql.DB, sessionID, peerID string, currentHash, passwordHash, passwordSalt, loginKeySalt, encryptedMasterKey, identityPublicKey, encryptedIdentityKey []byte) error {
+	if len(currentHash) != 32 || len(passwordHash) != 32 || len(passwordSalt) != 16 || len(loginKeySalt) != 16 || len(encryptedMasterKey) == 0 || len(identityPublicKey) == 0 || len(encryptedIdentityKey) == 0 {
+		return errors.New("invalid password change data")
+	}
+	tx, err := dbConn.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var userID int64
+	var storedHash []byte
+	var storedPeer string
+	var expiresAt int64
+	err = tx.QueryRow(`
+		SELECT u.id, u.password_hash, s.peer_id, s.expires_at
+		FROM sessions s JOIN users u ON u.id = s.user_id
+		WHERE s.id = ?
+	`, sessionID).Scan(&userID, &storedHash, &storedPeer, &expiresAt)
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && (storedPeer != peerID || time.Now().Unix() > expiresAt)) {
+		return ErrInvalidSession
+	}
+	if err != nil {
+		return err
+	}
+	if subtle.ConstantTimeCompare(currentHash, storedHash) != 1 {
+		return ErrInvalidCurrentPassword
+	}
+	if _, err := tx.Exec(`
+		UPDATE users SET password_hash = ?, password_salt = ?, login_key_salt = ?,
+			encrypted_master_key = ?, identity_public_key = ?, encrypted_identity_key = ?
+		WHERE id = ?
+	`, passwordHash, passwordSalt, loginKeySalt, encryptedMasterKey, identityPublicKey, encryptedIdentityKey, userID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM sessions WHERE user_id = ? AND id <> ?`, userID, sessionID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 func GetAllUser(db *sql.DB) ([]User, error) {
 	rows, err := db.QueryContext(context.Background(), `
